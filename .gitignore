@@ -1,0 +1,11 @@
+.DS_Store
+__pycache__/
+*.pyc
+target/
+.anchor/
+.keystore/
+*.json.key
+id.json
+secrets/
+roots/**/lots.csv
+roots/**/*_raw.json
