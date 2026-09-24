@@ -4,14 +4,12 @@ Merkle fingerprints of U.S. county parcel extracts on Solana.
 
 **Not a deed. Not title. Not a token.**
 
-| | |
-|---|---|
-| Program | CountyRoot |
-| Packets | [countyroot.com](https://countyroot.com) |
-| Product (intel / passports) | [vara.land](https://vara.land) |
-| Contact | [hello@countyroot.com](mailto:hello@countyroot.com) |
+- Program: CountyRoot
+- Packets: https://countyroot.com
+- Product (intel / passports): https://vara.land
+- Contact: hello@countyroot.com
 
-One `CountyRoot` PDA per county (FIPS) per epoch holds a 32-byte merkle root. The lot list lives off-chain as `lots.csv`. No owner names are hashed or stored.
+One CountyRoot PDA per county (FIPS) per epoch holds a 32-byte merkle root. The lot list lives off-chain as lots.csv. No owner names are hashed or stored.
 
 ## Status
 
