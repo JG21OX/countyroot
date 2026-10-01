@@ -7,5 +7,13 @@ target/
 *.json.key
 id.json
 secrets/
+node_modules/
+.wrangler/
+.dev.vars
+.env
+.env.*
+
 roots/**/lots.csv
 roots/**/*_raw.json
+**/*.csv
+**/*.csv.gz
