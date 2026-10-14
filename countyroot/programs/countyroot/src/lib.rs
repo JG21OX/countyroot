@@ -51,6 +51,32 @@ pub mod countyroot {
         Ok(())
     }
 
+    pub fn update_root(
+        ctx: Context<UpdateRoot>,
+        n_parcels: u64,
+        merkle_root: [u8; 32],
+        schema: [u8; 32],
+    ) -> Result<()> {
+        require!(!ctx.accounts.config.paused, CountyError::Paused);
+        require!(
+            ctx.accounts.attestor.key() == ctx.accounts.config.attestor,
+            CountyError::BadAttestor
+        );
+        require!(n_parcels > 0, CountyError::EmptyPacket);
+        require!(merkle_root != [0u8; 32], CountyError::ZeroRoot);
+        require!(
+            ctx.accounts.county_root.status == STATUS_ACTIVE,
+            CountyError::NotActive
+        );
+
+        let root = &mut ctx.accounts.county_root;
+        root.n_parcels = n_parcels;
+        root.merkle_root = merkle_root;
+        root.schema = schema;
+        root.posted_at = Clock::get()?.unix_timestamp;
+        Ok(())
+    }
+
     pub fn retract_root(ctx: Context<RetractRoot>) -> Result<()> {
         require!(
             ctx.accounts.attestor.key() == ctx.accounts.config.attestor,
@@ -117,6 +143,18 @@ pub struct PostRoot<'info> {
 }
 
 #[derive(Accounts)]
+pub struct UpdateRoot<'info> {
+    pub config: Account<'info, Config>,
+    #[account(
+        mut,
+        seeds = [b"county_root".as_ref(), county_root.fips.to_le_bytes().as_ref(), county_root.epoch.to_le_bytes().as_ref()],
+        bump = county_root.bump
+    )]
+    pub county_root: Account<'info, CountyRoot>,
+    pub attestor: Signer<'info>,
+}
+
+#[derive(Accounts)]
 pub struct RetractRoot<'info> {
     pub config: Account<'info, Config>,
     #[account(
@@ -138,4 +176,6 @@ pub enum CountyError {
     EmptyPacket,
     #[msg("merkle_root cannot be zero")]
     ZeroRoot,
+    #[msg("County root is not active")]
+    NotActive,
 }
