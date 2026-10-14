@@ -62,12 +62,12 @@ pub mod countyroot {
             ctx.accounts.attestor.key() == ctx.accounts.config.attestor,
             CountyError::BadAttestor
         );
-        require!(n_parcels > 0, CountyError::EmptyPacket);
-        require!(merkle_root != [0u8; 32], CountyError::ZeroRoot);
         require!(
             ctx.accounts.county_root.status == STATUS_ACTIVE,
             CountyError::NotActive
         );
+        require!(n_parcels > 0, CountyError::EmptyPacket);
+        require!(merkle_root != [0u8; 32], CountyError::ZeroRoot);
 
         let root = &mut ctx.accounts.county_root;
         root.n_parcels = n_parcels;
@@ -78,6 +78,7 @@ pub mod countyroot {
     }
 
     pub fn retract_root(ctx: Context<RetractRoot>) -> Result<()> {
+        require!(!ctx.accounts.config.paused, CountyError::Paused);
         require!(
             ctx.accounts.attestor.key() == ctx.accounts.config.attestor,
             CountyError::BadAttestor
@@ -128,6 +129,10 @@ pub struct InitConfig<'info> {
 #[derive(Accounts)]
 #[instruction(fips: u32, epoch: u32)]
 pub struct PostRoot<'info> {
+    #[account(
+        seeds = [b"config"],
+        bump = config.bump
+    )]
     pub config: Account<'info, Config>,
     #[account(
         init,
@@ -144,6 +149,10 @@ pub struct PostRoot<'info> {
 
 #[derive(Accounts)]
 pub struct UpdateRoot<'info> {
+    #[account(
+        seeds = [b"config"],
+        bump = config.bump
+    )]
     pub config: Account<'info, Config>,
     #[account(
         mut,
@@ -156,6 +165,10 @@ pub struct UpdateRoot<'info> {
 
 #[derive(Accounts)]
 pub struct RetractRoot<'info> {
+    #[account(
+        seeds = [b"config"],
+        bump = config.bump
+    )]
     pub config: Account<'info, Config>,
     #[account(
         mut,
@@ -176,6 +189,6 @@ pub enum CountyError {
     EmptyPacket,
     #[msg("merkle_root cannot be zero")]
     ZeroRoot,
-    #[msg("County root is not active")]
+    #[msg("Root is not active")]
     NotActive,
 }
