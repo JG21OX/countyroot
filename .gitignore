@@ -17,3 +17,7 @@ roots/**/lots.csv
 roots/**/*_raw.json
 **/*.csv
 **/*.csv.gz
+
+# local keys / data
+*.root.json
+.vscode/

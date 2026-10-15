@@ -1,7 +1,7 @@
 {
   "name": "CountyRoot",
   "logo": "https://countyroot.com/CountyRoot-square.png",
-  "description": "Merkle fingerprints of U.S. county parcel extracts on Solana. Not a title. Not a token.",
+  "description": "Merkle fingerprints of U.S. county parcel extracts on Solana. Not a deed. Not a title. Not a token.",
   "project_url": "https://countyroot.com",
   "contacts": ["email:hello@countyroot.com"],
   "source_code": "https://github.com/JG21OX/countyroot",

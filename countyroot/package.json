@@ -8,7 +8,7 @@
   },
   "keywords": [],
   "author": "",
-  "license": "ISC",
+  "license": "PolyForm-Shield-1.0.0",
   "type": "commonjs",
   "dependencies": {
     "@coral-xyz/anchor": "^0.32.1",
