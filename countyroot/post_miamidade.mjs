@@ -6,7 +6,7 @@ import fs from "fs";
 const PROGRAM_ID = new PublicKey("7mi96nPvP6SB1eApAd7vN2uUEBDvNR9xVvLqPDt3uvwg");
 const FIPS = 12086;
 const EPOCH = 2;
-const ROOT_PATH = "~/Downloads/MiamiDade.FL/MiamiDade.FL.2.2026-10.root.json";
+const ROOT_PATH = process.env.ROOT_PATH || (process.env.HOME + "/Downloads/MiamiDade.FL/MiamiDade.FL.2.2026-10.root.json");
 
 const provider = anchor.AnchorProvider.env();
 anchor.setProvider(provider);

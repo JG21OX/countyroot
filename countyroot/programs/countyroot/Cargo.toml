@@ -1,7 +1,9 @@
 [package]
 name = "countyroot"
 version = "0.1.0"
-description = "Created with Anchor"
+description = "CountyRoot: Merkle roots of U.S. county parcel extracts on Solana"
+license = "PolyForm-Shield-1.0.0"
+repository = "https://github.com/JG21OX/countyroot"
 edition.workspace = true
 rust-version.workspace = true
 
