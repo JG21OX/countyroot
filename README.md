@@ -1,6 +1,6 @@
 # CountyRoot
 
-Merkle fingerprints of U.S. county parcel extracts on Solana.
+CountyRoot is source-available software that posts a Merkle root of a U.S. county's public parcel extract to Solana (one PDA per county per epoch), while the full parcel list stays off-chain as a downloadable CSV. It is not a deed, title, or token; it is a public, time-stamped fingerprint that a specific extract existed and that any single parcel in it can be proven against that root. The county remains the legal source; CountyRoot only fingerprints the public data so it can later serve as the foundation for people who want to tokenize their own land.
 
 Not a deed. Not a title. Not a token. The county remains the legal source.
 
@@ -16,7 +16,7 @@ One account per county (FIPS) per epoch holds a 32-byte merkle root. The parcel 
 ## Status
 
 Solana Fall School Demo Day — 16 October 2026.
-Live on Devnet: Travis.TX, MiamiDade.FL, NewYork.NY, Suffolk.MA (epochs 1 and 2) and King.WA (epoch 1).
+Live on Devnet: 212 counties across 41 states. See https://countyroot.com for the full list.
 Maintainer: JG21OX.
 
 ## License
