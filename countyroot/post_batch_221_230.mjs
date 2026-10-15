@@ -1,0 +1,4 @@
+// Runs the ready rows 221-230 post scripts in order. Stops on first failure.
+import { execFileSync } from "child_process";
+const scripts = ["post_jones_tx.mjs","post_brazoria_tx.mjs","post_dorchester_sc.mjs","post_brazos_tx.mjs","post_palmbeach_fl.mjs","post_newhanover_nc.mjs","post_shawnee_ks.mjs"];
+for (const s of scripts) { console.log(`== ${s}`); execFileSync("node", [s], { stdio: "inherit", env: process.env }); }
