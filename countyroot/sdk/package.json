@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "description": "Verify CountyRoot parcel proofs and read CountyRoot accounts and events on Solana.",
-  "license": "SEE LICENSE IN LICENSE",
+  "license": "MIT",
   "homepage": "https://countyroot.com",
   "repository": {
     "type": "git",

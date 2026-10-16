@@ -21,7 +21,7 @@ Maintainer: JG21OX.
 
 ## License
 
-Source-available and free to use under the [PolyForm Shield License 1.0.0](LICENSE). Anyone, including businesses, may use, copy, and modify this software at no cost. You may not use it to build or sell a product or service that competes with CountyRoot.
+Source-available and free to use under the [PolyForm Shield License 1.0.0](LICENSE). Anyone, including businesses, may use, copy, and modify this software at no cost. You may not use it to build or sell a product or service that competes with CountyRoot. The SDK in [`countyroot/sdk`](countyroot/sdk) is the exception: it is MIT-licensed, so anyone can use it to verify CountyRoot data.
 
 Public extracts remain the counties’. This repo is the fingerprint software, not the official roll.
 

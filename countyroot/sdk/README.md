@@ -58,4 +58,4 @@ real packet end to end.
 
 ## License
 
-[PolyForm Shield 1.0.0](LICENSE), same as the CountyRoot repo.
+[MIT](LICENSE). The SDK in this folder is MIT-licensed so anyone can build on CountyRoot data; the rest of the CountyRoot repo, including the on-chain program, stays under PolyForm Shield 1.0.0.
