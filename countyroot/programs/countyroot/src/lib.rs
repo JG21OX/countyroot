@@ -139,6 +139,23 @@ pub mod countyroot {
         Ok(())
     }
 
+    /// Authority-only emergency stop. Idempotent: setting the current value succeeds
+    /// (and still emits PauseChanged with old == new), so unpause can always be retried safely.
+    pub fn set_paused(ctx: Context<SetPaused>, paused: bool) -> Result<()> {
+        let clock = Clock::get()?;
+        let cfg = &mut ctx.accounts.config;
+        let old = cfg.paused;
+        cfg.paused = paused;
+        emit!(PauseChanged {
+            authority: ctx.accounts.authority.key(),
+            old,
+            new: paused,
+            slot: clock.slot,
+            ts: clock.unix_timestamp,
+        });
+        Ok(())
+    }
+
     pub fn close_root(ctx: Context<CloseRoot>) -> Result<()> {
         require!(!ctx.accounts.config.paused, CountyError::Paused);
         require!(
@@ -269,6 +286,27 @@ pub struct RootClosed {
     pub ts: i64,
     /// Appended last so older decoders that ignore trailing bytes keep working.
     pub version: u8,
+}
+
+#[event]
+pub struct PauseChanged {
+    pub authority: Pubkey,
+    pub old: bool,
+    pub new: bool,
+    pub slot: u64,
+    pub ts: i64,
+}
+
+#[derive(Accounts)]
+pub struct SetPaused<'info> {
+    #[account(
+        mut,
+        seeds = [b"config"],
+        bump = config.bump,
+        has_one = authority @ CountyError::BadAuthority
+    )]
+    pub config: Account<'info, Config>,
+    pub authority: Signer<'info>,
 }
 
 #[derive(Accounts)]

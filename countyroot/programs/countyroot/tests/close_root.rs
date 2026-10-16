@@ -103,10 +103,10 @@ fn non_authority_fails() {
 #[test]
 fn paused_fails() {
     let mut e = setup(true);
-    // No pause instruction exists yet (item 5); flip Config.paused (offset 8+32+32) directly.
-    let mut acc = e.svm.get_account(&e.config).unwrap();
-    acc.data[72] = 1;
-    e.svm.set_account(e.config, acc).unwrap();
+    let auth = e.auth.insecure_clone();
+    let ix = Instruction::new_with_bytes(countyroot::ID, &countyroot::instruction::SetPaused { paused: true }.data(),
+        countyroot::accounts::SetPaused { config: e.config, authority: auth.pubkey() }.to_account_metas(None));
+    send(&mut e.svm, &auth, ix).unwrap();
     let (ix, auth) = (close_ix(&e, e.auth.pubkey()), e.auth.insecure_clone());
     let err = send(&mut e.svm, &auth, ix).unwrap_err();
     assert!(err.contains("Paused"), "{err}");
