@@ -1,0 +1,4 @@
+{
+  "policy": "A fips/epoch that was closed (close_root) or retracted is never re-posted. Corrections always use epoch+1. List closed epochs here; preflight also checks on-chain history when an RPC is available.",
+  "closed": []
+}

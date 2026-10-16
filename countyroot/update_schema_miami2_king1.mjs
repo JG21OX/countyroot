@@ -7,6 +7,7 @@ import { PublicKey } from "@solana/web3.js";
 import BN from "bn.js";
 import fs from "fs";
 import { createHash } from "crypto";
+import { guardProgram } from "./scripts/preflight.mjs";
 
 const DRY = process.argv.includes("--dry-run");
 if (process.env.COUNTYROOT_ATTESTOR_KEYPAIR) process.env.ANCHOR_WALLET = process.env.COUNTYROOT_ATTESTOR_KEYPAIR.replace(/^~/, process.env.HOME);
@@ -15,6 +16,7 @@ anchor.setProvider(provider);
 const programId = new PublicKey("7mi96nPvP6SB1eApAd7vN2uUEBDvNR9xVvLqPDt3uvwg");
 const idl = JSON.parse(fs.readFileSync("./target/idl/countyroot.json", "utf8"));
 const program = new anchor.Program(idl, provider);
+guardProgram(program); // verify the packet before sending (scripts/preflight.mjs)
 
 const SCHEMA_STR = "sha256(utf8 parcel_id|acres_6dp|lot_sqft_2dp)";
 const schema = createHash("sha256").update(SCHEMA_STR).digest();

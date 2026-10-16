@@ -2,6 +2,7 @@ import * as anchor from "@coral-xyz/anchor";
 import { PublicKey, SystemProgram } from "@solana/web3.js";
 import BN from "bn.js";
 import fs from "fs";
+import { guardProgram } from "./scripts/preflight.mjs";
 
 const PROGRAM_ID = new PublicKey("7mi96nPvP6SB1eApAd7vN2uUEBDvNR9xVvLqPDt3uvwg");
 const FIPS = 12086;
@@ -14,6 +15,7 @@ anchor.setProvider(provider);
 
 const idl = JSON.parse(fs.readFileSync("./target/idl/countyroot.json", "utf8"));
 const program = new anchor.Program(idl, provider);
+guardProgram(program); // verify the packet before sending (scripts/preflight.mjs)
 
 const doc = JSON.parse(fs.readFileSync(ROOT_PATH, "utf8"));
 const merkleRoot = Buffer.from(doc.merkle_root, "hex");

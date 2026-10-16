@@ -2,6 +2,7 @@ import * as anchor from "@coral-xyz/anchor";
 import { PublicKey, SystemProgram } from "@solana/web3.js";
 import BN from "bn.js";
 import fs from "fs";
+import { guardProgram } from "./scripts/preflight.mjs";
 
 if (process.env.COUNTYROOT_ATTESTOR_KEYPAIR) process.env.ANCHOR_WALLET = process.env.COUNTYROOT_ATTESTOR_KEYPAIR.replace(/^~/, process.env.HOME);
 const provider = anchor.AnchorProvider.env();
@@ -10,6 +11,7 @@ anchor.setProvider(provider);
 const programId = new PublicKey("7mi96nPvP6SB1eApAd7vN2uUEBDvNR9xVvLqPDt3uvwg");
 const idl = JSON.parse(fs.readFileSync("./target/idl/countyroot.json", "utf8"));
 const program = new anchor.Program(idl, provider);
+guardProgram(program); // verify the packet before sending (scripts/preflight.mjs)
 
 const fips = 6053;
 const epoch = 1;

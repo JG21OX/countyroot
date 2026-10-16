@@ -1,0 +1,189 @@
+{
+ "address": "7mi96nPvP6SB1eApAd7vN2uUEBDvNR9xVvLqPDt3uvwg",
+ "metadata": {
+  "name": "countyroot",
+  "version": "0.1.0",
+  "spec": "0.1.0"
+ },
+ "instructions": [
+  {
+   "name": "post_root",
+   "discriminator": [
+    154,
+    210,
+    156,
+    158,
+    199,
+    27,
+    174,
+    35
+   ],
+   "accounts": [
+    {
+     "name": "config"
+    },
+    {
+     "name": "county_root",
+     "writable": true
+    },
+    {
+     "name": "attestor",
+     "writable": true,
+     "signer": true
+    },
+    {
+     "name": "system_program"
+    }
+   ],
+   "args": [
+    {
+     "name": "fips",
+     "type": "u32"
+    },
+    {
+     "name": "epoch",
+     "type": "u32"
+    },
+    {
+     "name": "n_parcels",
+     "type": "u64"
+    },
+    {
+     "name": "merkle_root",
+     "type": {
+      "array": [
+       "u8",
+       32
+      ]
+     }
+    },
+    {
+     "name": "schema",
+     "type": {
+      "array": [
+       "u8",
+       32
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "name": "update_root",
+   "discriminator": [
+    58,
+    195,
+    57,
+    246,
+    116,
+    198,
+    170,
+    138
+   ],
+   "accounts": [
+    {
+     "name": "config"
+    },
+    {
+     "name": "county_root",
+     "writable": true
+    },
+    {
+     "name": "attestor",
+     "signer": true
+    }
+   ],
+   "args": [
+    {
+     "name": "n_parcels",
+     "type": "u64"
+    },
+    {
+     "name": "merkle_root",
+     "type": {
+      "array": [
+       "u8",
+       32
+      ]
+     }
+    },
+    {
+     "name": "schema",
+     "type": {
+      "array": [
+       "u8",
+       32
+      ]
+     }
+    }
+   ]
+  }
+ ],
+ "accounts": [
+  {
+   "name": "CountyRoot",
+   "discriminator": [
+    97,
+    22,
+    226,
+    177,
+    52,
+    58,
+    226,
+    173
+   ]
+  }
+ ],
+ "types": [
+  {
+   "name": "CountyRoot",
+   "type": {
+    "kind": "struct",
+    "fields": [
+     {
+      "name": "fips",
+      "type": "u32"
+     },
+     {
+      "name": "epoch",
+      "type": "u32"
+     },
+     {
+      "name": "n_parcels",
+      "type": "u64"
+     },
+     {
+      "name": "merkle_root",
+      "type": {
+       "array": [
+        "u8",
+        32
+       ]
+      }
+     },
+     {
+      "name": "schema",
+      "type": {
+       "array": [
+        "u8",
+        32
+       ]
+      }
+     },
+     {
+      "name": "status",
+      "type": "u8"
+     },
+     {
+      "name": "posted_at",
+      "type": "i64"
+     },
+     {
+      "name": "bump",
+      "type": "u8"
+     }
+    ]
+   }
+  }
+ ]
+}

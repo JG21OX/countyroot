@@ -3,12 +3,14 @@ import { PublicKey, SystemProgram } from "@solana/web3.js";
 import { readFileSync } from "fs";
 import { createHash } from "crypto";
 import BN from "bn.js";
+import { guardProgram } from "./scripts/preflight.mjs";
 
 const idl = JSON.parse(readFileSync("./target/idl/countyroot.json", "utf8"));
 if (process.env.COUNTYROOT_ATTESTOR_KEYPAIR) process.env.ANCHOR_WALLET = process.env.COUNTYROOT_ATTESTOR_KEYPAIR.replace(/^~/, process.env.HOME);
 const provider = anchor.AnchorProvider.env();
 anchor.setProvider(provider);
 const program = new anchor.Program(idl, provider);
+guardProgram(program); // verify the packet before sending (scripts/preflight.mjs)
 const attestor = provider.wallet.publicKey;
 
 const fips = 48453;

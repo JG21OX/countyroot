@@ -6,6 +6,7 @@ import * as anchor from "@coral-xyz/anchor";
 import { PublicKey } from "@solana/web3.js";
 import BN from "bn.js";
 import fs from "fs";
+import { guardProgram } from "./scripts/preflight.mjs";
 
 const DRY = process.argv.includes("--dry-run");
 if (process.env.COUNTYROOT_ATTESTOR_KEYPAIR) process.env.ANCHOR_WALLET = process.env.COUNTYROOT_ATTESTOR_KEYPAIR.replace(/^~/, process.env.HOME);
@@ -14,6 +15,7 @@ anchor.setProvider(provider);
 const programId = new PublicKey("7mi96nPvP6SB1eApAd7vN2uUEBDvNR9xVvLqPDt3uvwg");
 const idl = JSON.parse(fs.readFileSync("./target/idl/countyroot.json", "utf8"));
 const program = new anchor.Program(idl, provider);
+guardProgram(program); // verify the packet before sending (scripts/preflight.mjs)
 
 // Schema: sha256("sha256(utf8 parcel_id|acres_6dp|lot_sqft_2dp)"), unchanged from the epoch 2 posts.
 const schema = Buffer.from("1b0a0a99e80b71583619941720ccd746c9bd03551ca906bcb0a333839b29a427", "hex");
