@@ -16,7 +16,7 @@ guardProgram(program); // verify the packet before sending (scripts/preflight.mj
 const fips = 40113;
 const epoch = 2;
 const nParcels = 41941;
-const merkleRoot = Buffer.from("024a12501330f6c1ea49903cb4136ba4fbbee962f13426e4f4af93a62564a684", "hex");
+const merkleRoot = Buffer.from("bf012e2f99dc3bfb8929c58cde864504994f25fb2ed76c75657079c4cda61ee0", "hex");
 const schema = Buffer.from("1b0a0a99e80b71583619941720ccd746c9bd03551ca906bcb0a333839b29a427", "hex");
 
 const [config] = PublicKey.findProgramAddressSync([Buffer.from("config")], programId);
