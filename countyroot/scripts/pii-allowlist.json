@@ -1,0 +1,6 @@
+{
+  "comment": "Exact parcel IDs (case-insensitive) that trip scripts/pii.mjs but are place/plat names in public county data, not people. Add with the county and a reason.",
+  "allow": [
+    { "id": "THOMAS PLAINS COMBO", "county": "Jefferson.AL", "reason": "place name (Thomas Plains) used as a combined-parcel label" }
+  ]
+}

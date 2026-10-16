@@ -3,6 +3,7 @@
 //   node scripts/verify.mjs --csv X.csv [--root X.root.json]            (root.json defaults to X.root.json)
 //   node scripts/verify.mjs --label Travis.TX --epoch 2 [--dir <packets dir>]
 //   options: --fips N --epoch N --expect-root <hex> --expect-n N   (also compare with what will be posted)
+//            --allow-pii 1   (skip the parcel-ID personal-info check; see scripts/pii.mjs)
 //            --rpc devnet|<url>   (refuse if this fips/epoch was ever closed or is retracted on-chain)
 // Exit code 0 = OK, 1 = mismatch/refused (reason printed), 2 = usage or setup error.
 import fs from "fs";
@@ -10,6 +11,7 @@ import os from "os";
 import path from "path";
 import { fileURLToPath, pathToFileURL } from "url";
 import { Connection, PublicKey, clusterApiUrl } from "@solana/web3.js";
+import { scanRows, loadAllowlist } from "./pii.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const SDK = path.join(here, "../sdk/dist/src/index.js");
@@ -92,7 +94,7 @@ export async function checkEpochPolicy({ fips, epoch, op = "post" }, { connectio
  * Verify a packet CSV against its root.json, and optionally against the values about to be posted.
  * Returns { ok: true, ... } or throws VerifyError with the reason.
  */
-export async function verifyPacket({ csvPath, rootPath, expect = {} }) {
+export async function verifyPacket({ csvPath, rootPath, expect = {}, pii = true, allowlist }) {
   const { parsePacketCsv, leafHash, buildLevels } = await loadSdk();
   rootPath ??= csvPath.replace(/\.csv$/, ".root.json");
   if (!fs.existsSync(rootPath)) throw new VerifyError(`root.json not found: ${rootPath}`);
@@ -112,6 +114,13 @@ export async function verifyPacket({ csvPath, rootPath, expect = {} }) {
     if (r.leaf !== undefined && r.leaf.toLowerCase() !== h.toString("hex"))
       throw new VerifyError(`row ${i + 2} (${r.parcel_id}): stored leaf ${r.leaf} != recomputed ${h.toString("hex")}`);
     leaves[i] = h;
+  }
+  if (pii) {
+    const hits = scanRows(rows, allowlist ?? loadAllowlist());
+    if (hits.length) {
+      const shown = hits.slice(0, 10).map((h) => `row ${h.row} ${h.reason} "${h.masked}"`).join("; ");
+      throw new VerifyError(`${hits.length} parcel ID(s) look like personal info (${shown}${hits.length > 10 ? "; ..." : ""}). Replace them in a new epoch, or add a reviewed place name to scripts/pii-allowlist.json`);
+    }
   }
   if (rows.length !== Number(doc.n_parcels)) throw new VerifyError(`CSV has ${rows.length} rows but root.json n_parcels is ${doc.n_parcels}`);
   const levels = buildLevels(leaves);
@@ -147,7 +156,7 @@ export async function main(argv, log = console.log) {
       const dirs = a.dir ? [expand(a.dir)] : packetDirs();
       rootPath = locatePacket({ label: a.label, fips: num(a.fips), epoch: num(a.epoch), merkleRoot: a["expect-root"] }, dirs);
     }
-    const r = await verifyPacket({ csvPath, rootPath, expect: { fips: num(a.fips), epoch: num(a.epoch), nParcels: a["expect-n"], merkleRoot: a["expect-root"] } });
+    const r = await verifyPacket({ csvPath, rootPath, expect: { fips: num(a.fips), epoch: num(a.epoch), nParcels: a["expect-n"], merkleRoot: a["expect-root"] }, pii: !a["allow-pii"] });
     if (a.rpc) await checkEpochPolicy({ fips: r.fips, epoch: r.epoch, op: a.op ?? "post" }, { connection: new Connection(rpcUrl(a.rpc), "confirmed") });
     else await checkEpochPolicy({ fips: r.fips, epoch: r.epoch });
     log(`VERIFIED ${r.label ?? ""} fips ${r.fips} epoch ${r.epoch}: ${r.nParcels} parcels, root ${r.root}${a.rpc ? " (on-chain epoch policy checked)" : ""}`);

@@ -3,7 +3,7 @@
 // Each script calls guardProgram(program) right after creating it. postRoot/updateRoot builders
 // are wrapped so .rpc() / .transaction() / .instruction() first:
 //   1. find the local packet (COUNTYROOT_PACKETS_DIR, default ~/Downloads) for the fips/epoch,
-//   2. run scripts/verify.mjs checks (every leaf, root, n_parcels, fips, epoch),
+//   2. run scripts/verify.mjs checks (every leaf, root, n_parcels, fips, epoch, and no personal info in parcel IDs),
 //   3. apply the closed-epoch policy (closed-epochs.json + on-chain history via the script's RPC).
 // Escape hatch: --skip-verify (or COUNTYROOT_SKIP_VERIFY=1) prints a loud warning and skips the checks.
 import { verifyPacket, locatePacket, checkEpochPolicy, VerifyError } from "./verify.mjs";
