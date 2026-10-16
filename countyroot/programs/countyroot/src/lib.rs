@@ -133,6 +133,27 @@ pub mod countyroot {
         });
         Ok(())
     }
+
+    pub fn close_root(ctx: Context<CloseRoot>) -> Result<()> {
+        require!(!ctx.accounts.config.paused, CountyError::Paused);
+        require!(
+            ctx.accounts.county_root.status == STATUS_RETRACTED,
+            CountyError::NotRetracted
+        );
+        let clock = Clock::get()?;
+        let root = &ctx.accounts.county_root;
+        emit!(RootClosed {
+            county_root: root.key(),
+            fips: root.fips,
+            epoch: root.epoch,
+            merkle_root: root.merkle_root,
+            authority: ctx.accounts.authority.key(),
+            lamports_returned: root.to_account_info().lamports(),
+            slot: clock.slot,
+            ts: clock.unix_timestamp,
+        });
+        Ok(())
+    }
 }
 
 pub const STATUS_ACTIVE: u8 = 1;
@@ -209,6 +230,18 @@ pub struct RootRetracted {
     pub ts: i64,
 }
 
+#[event]
+pub struct RootClosed {
+    pub county_root: Pubkey,
+    pub fips: u32,
+    pub epoch: u32,
+    pub merkle_root: [u8; 32],
+    pub authority: Pubkey,
+    pub lamports_returned: u64,
+    pub slot: u64,
+    pub ts: i64,
+}
+
 #[derive(Accounts)]
 pub struct InitConfig<'info> {
     #[account(
@@ -277,6 +310,25 @@ pub struct RetractRoot<'info> {
     pub attestor: Signer<'info>,
 }
 
+#[derive(Accounts)]
+pub struct CloseRoot<'info> {
+    #[account(
+        seeds = [b"config"],
+        bump = config.bump,
+        has_one = authority @ CountyError::BadAuthority
+    )]
+    pub config: Account<'info, Config>,
+    #[account(
+        mut,
+        close = authority,
+        seeds = [b"county_root".as_ref(), county_root.fips.to_le_bytes().as_ref(), county_root.epoch.to_le_bytes().as_ref()],
+        bump = county_root.bump
+    )]
+    pub county_root: Account<'info, CountyRoot>,
+    #[account(mut)]
+    pub authority: Signer<'info>,
+}
+
 #[error_code]
 pub enum CountyError {
     #[msg("Program is paused")]
@@ -289,4 +341,8 @@ pub enum CountyError {
     ZeroRoot,
     #[msg("Root is not active")]
     NotActive,
+    #[msg("Root must be retracted before it can be closed")]
+    NotRetracted,
+    #[msg("Signer is not the config authority")]
+    BadAuthority,
 }
