@@ -5,6 +5,7 @@ import { createHash } from "crypto";
 import BN from "bn.js";
 
 const idl = JSON.parse(readFileSync("./target/idl/countyroot.json", "utf8"));
+if (process.env.COUNTYROOT_ATTESTOR_KEYPAIR) process.env.ANCHOR_WALLET = process.env.COUNTYROOT_ATTESTOR_KEYPAIR.replace(/^~/, process.env.HOME);
 const provider = anchor.AnchorProvider.env();
 anchor.setProvider(provider);
 const program = new anchor.Program(idl, provider);

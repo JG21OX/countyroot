@@ -3,6 +3,7 @@ import { PublicKey, SystemProgram } from "@solana/web3.js";
 import BN from "bn.js";
 import fs from "fs";
 
+if (process.env.COUNTYROOT_ATTESTOR_KEYPAIR) process.env.ANCHOR_WALLET = process.env.COUNTYROOT_ATTESTOR_KEYPAIR.replace(/^~/, process.env.HOME);
 const provider = anchor.AnchorProvider.env();
 anchor.setProvider(provider);
 

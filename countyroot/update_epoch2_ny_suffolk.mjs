@@ -8,6 +8,7 @@ import BN from "bn.js";
 import fs from "fs";
 
 const DRY = process.argv.includes("--dry-run");
+if (process.env.COUNTYROOT_ATTESTOR_KEYPAIR) process.env.ANCHOR_WALLET = process.env.COUNTYROOT_ATTESTOR_KEYPAIR.replace(/^~/, process.env.HOME);
 const provider = anchor.AnchorProvider.env();
 anchor.setProvider(provider);
 const programId = new PublicKey("7mi96nPvP6SB1eApAd7vN2uUEBDvNR9xVvLqPDt3uvwg");

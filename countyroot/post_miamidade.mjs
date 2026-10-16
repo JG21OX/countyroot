@@ -8,6 +8,7 @@ const FIPS = 12086;
 const EPOCH = 2;
 const ROOT_PATH = process.env.ROOT_PATH || (process.env.HOME + "/Downloads/MiamiDade.FL/MiamiDade.FL.2.2026-10.root.json");
 
+if (process.env.COUNTYROOT_ATTESTOR_KEYPAIR) process.env.ANCHOR_WALLET = process.env.COUNTYROOT_ATTESTOR_KEYPAIR.replace(/^~/, process.env.HOME);
 const provider = anchor.AnchorProvider.env();
 anchor.setProvider(provider);
 
