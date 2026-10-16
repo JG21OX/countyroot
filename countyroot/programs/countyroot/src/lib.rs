@@ -156,6 +156,24 @@ pub mod countyroot {
         Ok(())
     }
 
+    /// Authority-only attestor rotation. Deliberately ignores `paused`, so a compromised
+    /// attestor can be swapped while writes are frozen.
+    pub fn set_attestor(ctx: Context<SetAttestor>, new_attestor: Pubkey) -> Result<()> {
+        require!(new_attestor != Pubkey::default(), CountyError::ZeroAttestor);
+        let clock = Clock::get()?;
+        let cfg = &mut ctx.accounts.config;
+        let old = cfg.attestor;
+        cfg.attestor = new_attestor;
+        emit!(AttestorChanged {
+            authority: ctx.accounts.authority.key(),
+            old,
+            new: new_attestor,
+            slot: clock.slot,
+            ts: clock.unix_timestamp,
+        });
+        Ok(())
+    }
+
     pub fn close_root(ctx: Context<CloseRoot>) -> Result<()> {
         require!(!ctx.accounts.config.paused, CountyError::Paused);
         require!(
@@ -309,6 +327,27 @@ pub struct SetPaused<'info> {
     pub authority: Signer<'info>,
 }
 
+#[event]
+pub struct AttestorChanged {
+    pub authority: Pubkey,
+    pub old: Pubkey,
+    pub new: Pubkey,
+    pub slot: u64,
+    pub ts: i64,
+}
+
+#[derive(Accounts)]
+pub struct SetAttestor<'info> {
+    #[account(
+        mut,
+        seeds = [b"config"],
+        bump = config.bump,
+        has_one = authority @ CountyError::BadAuthority
+    )]
+    pub config: Account<'info, Config>,
+    pub authority: Signer<'info>,
+}
+
 #[derive(Accounts)]
 pub struct InitConfig<'info> {
     #[account(
@@ -412,4 +451,6 @@ pub enum CountyError {
     NotRetracted,
     #[msg("Signer is not the config authority")]
     BadAuthority,
+    #[msg("Attestor cannot be the default (zero) pubkey")]
+    ZeroAttestor,
 }
