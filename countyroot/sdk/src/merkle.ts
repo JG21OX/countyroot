@@ -87,7 +87,9 @@ function splitCsv(line: string): string[] {
   for (let i = 0; i < line.length; i++) {
     const ch = line[i];
     if (q) { if (ch === '"') { if (line[i + 1] === '"') { cur += '"'; i++; } else q = false; } else cur += ch; }
-    else if (ch === '"') q = true; else if (ch === ",") { out.push(cur); cur = ""; } else cur += ch;
+    // A quote only opens a quoted field at the start of the field (like Python's csv module);
+    // elsewhere it is a literal character, e.g. parcel_id LOT "A".
+    else if (ch === '"' && cur === "") q = true; else if (ch === ",") { out.push(cur); cur = ""; } else cur += ch;
   }
   out.push(cur); return out;
 }

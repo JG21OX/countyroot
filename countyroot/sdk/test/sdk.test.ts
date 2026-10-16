@@ -104,6 +104,12 @@ test("v0 (98-byte) and v1 (99-byte) CountyRoot decoding", () => {
   assert.ok(pendingAuthorityPda() instanceof PublicKey);
 });
 
+test("CSV: quotes inside an unquoted field are literal; quoted fields still work", () => {
+  const rows = parsePacketCsv('parcel_id,acres,lot_sqft\nLOT "A",1,2\n"X, Y",3,4\n"Q""Z",5,6\n');
+  assert.deepEqual(rows.map((r) => r.parcel_id), ['LOT "A"', "X, Y", 'Q"Z']);
+  assert.equal(rows[0].acres, "1");
+});
+
 test("leaf formatting is half-up like the packet builder", () => {
   assert.equal(formatFixed("1.11", 6), "1.110000");
   assert.equal(formatFixed("0.0000005", 6), "0.000001");
