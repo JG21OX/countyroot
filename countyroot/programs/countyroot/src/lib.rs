@@ -174,6 +174,57 @@ pub mod countyroot {
         Ok(())
     }
 
+    /// Step 1 of config-authority rotation. Current authority only; works while paused.
+    /// Creates or overwrites the single PendingAuthority PDA (the authority pays rent).
+    pub fn propose_authority(ctx: Context<ProposeAuthority>, new_authority: Pubkey) -> Result<()> {
+        require!(new_authority != Pubkey::default(), CountyError::ZeroAuthority);
+        require!(
+            new_authority != ctx.accounts.config.authority,
+            CountyError::SameAuthority
+        );
+        let clock = Clock::get()?;
+        let pending = &mut ctx.accounts.pending;
+        pending.proposed = new_authority;
+        pending.proposer = ctx.accounts.authority.key();
+        pending.bump = ctx.bumps.pending;
+        emit!(AuthorityProposed {
+            authority: ctx.accounts.authority.key(),
+            proposed: new_authority,
+            slot: clock.slot,
+            ts: clock.unix_timestamp,
+        });
+        Ok(())
+    }
+
+    /// Step 2. Must be signed by the proposed key (a normal signer, or a PDA such as a
+    /// Squads vault signing via invoke_signed). Works while paused. Closes the pending
+    /// account and returns its rent to the proposer who paid for it.
+    pub fn accept_authority(ctx: Context<AcceptAuthority>) -> Result<()> {
+        let clock = Clock::get()?;
+        let cfg = &mut ctx.accounts.config;
+        let old = cfg.authority;
+        cfg.authority = ctx.accounts.new_authority.key();
+        emit!(AuthorityChanged {
+            old,
+            new: cfg.authority,
+            slot: clock.slot,
+            ts: clock.unix_timestamp,
+        });
+        Ok(())
+    }
+
+    /// Current authority only; works while paused. Closes the pending account (rent to proposer).
+    pub fn cancel_authority(ctx: Context<CancelAuthority>) -> Result<()> {
+        let clock = Clock::get()?;
+        emit!(AuthorityProposalCancelled {
+            authority: ctx.accounts.authority.key(),
+            proposed: ctx.accounts.pending.proposed,
+            slot: clock.slot,
+            ts: clock.unix_timestamp,
+        });
+        Ok(())
+    }
+
     pub fn close_root(ctx: Context<CloseRoot>) -> Result<()> {
         require!(!ctx.accounts.config.paused, CountyError::Paused);
         require!(
@@ -348,6 +399,106 @@ pub struct SetAttestor<'info> {
     pub authority: Signer<'info>,
 }
 
+#[account]
+pub struct PendingAuthority {
+    pub proposed: Pubkey,
+    pub proposer: Pubkey,
+    pub bump: u8,
+}
+
+pub const PENDING_AUTHORITY_LEN: usize = 8 + 32 + 32 + 1;
+
+#[event]
+pub struct AuthorityProposed {
+    pub authority: Pubkey,
+    pub proposed: Pubkey,
+    pub slot: u64,
+    pub ts: i64,
+}
+
+#[event]
+pub struct AuthorityChanged {
+    pub old: Pubkey,
+    pub new: Pubkey,
+    pub slot: u64,
+    pub ts: i64,
+}
+
+#[event]
+pub struct AuthorityProposalCancelled {
+    pub authority: Pubkey,
+    pub proposed: Pubkey,
+    pub slot: u64,
+    pub ts: i64,
+}
+
+#[derive(Accounts)]
+pub struct ProposeAuthority<'info> {
+    #[account(
+        seeds = [b"config"],
+        bump = config.bump,
+        has_one = authority @ CountyError::BadAuthority
+    )]
+    pub config: Account<'info, Config>,
+    #[account(
+        init_if_needed,
+        payer = authority,
+        space = PENDING_AUTHORITY_LEN,
+        seeds = [b"pending_authority"],
+        bump
+    )]
+    pub pending: Account<'info, PendingAuthority>,
+    #[account(mut)]
+    pub authority: Signer<'info>,
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+pub struct AcceptAuthority<'info> {
+    #[account(
+        mut,
+        seeds = [b"config"],
+        bump = config.bump
+    )]
+    pub config: Account<'info, Config>,
+    #[account(
+        mut,
+        close = proposer,
+        seeds = [b"pending_authority"],
+        bump = pending.bump,
+        has_one = proposer,
+        constraint = pending.proposed == new_authority.key() @ CountyError::WrongPendingAuthority,
+        constraint = pending.proposer == config.authority @ CountyError::StaleProposal
+    )]
+    pub pending: Account<'info, PendingAuthority>,
+    /// CHECK: rent destination; must equal pending.proposer (has_one).
+    #[account(mut)]
+    pub proposer: UncheckedAccount<'info>,
+    pub new_authority: Signer<'info>,
+}
+
+#[derive(Accounts)]
+pub struct CancelAuthority<'info> {
+    #[account(
+        seeds = [b"config"],
+        bump = config.bump,
+        has_one = authority @ CountyError::BadAuthority
+    )]
+    pub config: Account<'info, Config>,
+    #[account(
+        mut,
+        close = proposer,
+        seeds = [b"pending_authority"],
+        bump = pending.bump,
+        has_one = proposer
+    )]
+    pub pending: Account<'info, PendingAuthority>,
+    /// CHECK: rent destination; must equal pending.proposer (has_one).
+    #[account(mut)]
+    pub proposer: UncheckedAccount<'info>,
+    pub authority: Signer<'info>,
+}
+
 #[derive(Accounts)]
 pub struct InitConfig<'info> {
     #[account(
@@ -453,4 +604,12 @@ pub enum CountyError {
     BadAuthority,
     #[msg("Attestor cannot be the default (zero) pubkey")]
     ZeroAttestor,
+    #[msg("Authority cannot be the default (zero) pubkey")]
+    ZeroAuthority,
+    #[msg("Proposed authority is already the authority")]
+    SameAuthority,
+    #[msg("Signer is not the proposed authority")]
+    WrongPendingAuthority,
+    #[msg("Proposal was made by a previous authority")]
+    StaleProposal,
 }

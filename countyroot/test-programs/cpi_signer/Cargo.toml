@@ -1,0 +1,15 @@
+# Test-only program: forwards an instruction to CountyRoot via invoke_signed with PDA seeds
+# [b"vault"], mimicking how a Squads vault PDA signs. Never deployed.
+[package]
+name = "cpi_signer"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[lib]
+crate-type = ["cdylib", "lib"]
+
+[dependencies]
+solana-program = "3"
+
+[workspace]
