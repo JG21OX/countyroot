@@ -78,7 +78,7 @@ fn emits_all_events() {
     let e: RootPosted = event(&send(&mut svm, &att, ix));
     assert_eq!((e.county_root, e.fips, e.epoch, e.n_parcels), (cr, fips, epoch, 42));
     assert_eq!((e.merkle_root, e.schema), ([7u8; 32], [1u8; 32]));
-    assert_eq!((e.attestor, e.slot, e.ts), (att.pubkey(), 1000, 1_760_000_000));
+    assert_eq!((e.attestor, e.slot, e.ts, e.version), (att.pubkey(), 1000, 1_760_000_000, countyroot::COUNTY_ROOT_VERSION));
 
     // update_root
     set_clock(&mut svm, 2000, 1_760_000_100);
@@ -93,7 +93,7 @@ fn emits_all_events() {
     assert_eq!((e.old_n_parcels, e.new_n_parcels), (42, 43));
     assert_eq!((e.old_root, e.new_root), ([7u8; 32], [8u8; 32]));
     assert_eq!((e.old_schema, e.new_schema), ([1u8; 32], [2u8; 32]));
-    assert_eq!((e.attestor, e.slot, e.ts), (att.pubkey(), 2000, 1_760_000_100));
+    assert_eq!((e.attestor, e.slot, e.ts, e.version), (att.pubkey(), 2000, 1_760_000_100, countyroot::COUNTY_ROOT_VERSION));
 
     // retract_root
     set_clock(&mut svm, 3000, 1_760_000_200);
@@ -106,9 +106,9 @@ fn emits_all_events() {
     let e: RootRetracted = event(&send(&mut svm, &att, ix));
     assert_eq!((e.county_root, e.fips, e.epoch, e.merkle_root), (cr, fips, epoch, [8u8; 32]));
     assert_eq!(e.prev_status, countyroot::STATUS_ACTIVE);
-    assert_eq!((e.attestor, e.slot, e.ts), (att.pubkey(), 3000, 1_760_000_200));
+    assert_eq!((e.attestor, e.slot, e.ts, e.version), (att.pubkey(), 3000, 1_760_000_200, countyroot::COUNTY_ROOT_VERSION));
 
-    // account layout unchanged: CountyRoot still 98 bytes, Config 74
-    assert_eq!(svm.get_account(&cr).unwrap().data.len(), 8 + 4 + 4 + 8 + 32 + 32 + 1 + 8 + 1);
+    // new posts are v1 (99 bytes); Config unchanged at 74
+    assert_eq!(svm.get_account(&cr).unwrap().data.len(), countyroot::COUNTY_ROOT_V1_LEN);
     assert_eq!(svm.get_account(&config).unwrap().data.len(), 8 + 32 + 32 + 1 + 1);
 }

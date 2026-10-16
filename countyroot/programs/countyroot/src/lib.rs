@@ -53,6 +53,8 @@ pub mod countyroot {
         let clock = Clock::get()?;
         root.posted_at = clock.unix_timestamp;
         root.bump = ctx.bumps.county_root;
+        // v1 accounts carry one trailing version byte after the 98-byte v0 body.
+        root.to_account_info().try_borrow_mut_data()?[COUNTY_ROOT_V0_LEN] = COUNTY_ROOT_VERSION;
         emit!(RootPosted {
             county_root: root.key(),
             fips,
@@ -63,6 +65,7 @@ pub mod countyroot {
             attestor: ctx.accounts.attestor.key(),
             slot: clock.slot,
             ts: clock.unix_timestamp,
+            version: COUNTY_ROOT_VERSION,
         });
         Ok(())
     }
@@ -107,6 +110,7 @@ pub mod countyroot {
             attestor: ctx.accounts.attestor.key(),
             slot: clock.slot,
             ts: clock.unix_timestamp,
+            version: county_root_version(&root.to_account_info())?,
         });
         Ok(())
     }
@@ -130,6 +134,7 @@ pub mod countyroot {
             attestor: ctx.accounts.attestor.key(),
             slot: clock.slot,
             ts: clock.unix_timestamp,
+            version: county_root_version(&root.to_account_info())?,
         });
         Ok(())
     }
@@ -151,9 +156,25 @@ pub mod countyroot {
             lamports_returned: root.to_account_info().lamports(),
             slot: clock.slot,
             ts: clock.unix_timestamp,
+            version: county_root_version(&root.to_account_info())?,
         });
         Ok(())
     }
+}
+
+/// Size of a v0 CountyRoot account (8-byte discriminator + 90-byte body).
+pub const COUNTY_ROOT_V0_LEN: usize = 8 + 4 + 4 + 8 + 32 + 32 + 1 + 8 + 1;
+/// v1 = v0 body + 1 trailing version byte (not part of the Borsh struct, so v0 accounts still deserialize).
+pub const COUNTY_ROOT_V1_LEN: usize = COUNTY_ROOT_V0_LEN + 1;
+/// Layout/leaf-recipe version written by post_root today.
+/// 0 = legacy account with no version byte, 1 = current layout,
+/// leaf = sha256(parcel_id|acres.toFixed(6)|lot_sqft.toFixed(2)).
+pub const COUNTY_ROOT_VERSION: u8 = 1;
+
+/// Read a CountyRoot's version: 0 if the account is the legacy 98-byte layout.
+pub fn county_root_version(info: &AccountInfo) -> Result<u8> {
+    let data = info.try_borrow_data()?;
+    Ok(if data.len() > COUNTY_ROOT_V0_LEN { data[COUNTY_ROOT_V0_LEN] } else { 0 })
 }
 
 pub const STATUS_ACTIVE: u8 = 1;
@@ -200,6 +221,8 @@ pub struct RootPosted {
     pub attestor: Pubkey,
     pub slot: u64,
     pub ts: i64,
+    /// Appended last so older decoders that ignore trailing bytes keep working.
+    pub version: u8,
 }
 
 #[event]
@@ -216,6 +239,8 @@ pub struct RootUpdated {
     pub attestor: Pubkey,
     pub slot: u64,
     pub ts: i64,
+    /// Appended last so older decoders that ignore trailing bytes keep working.
+    pub version: u8,
 }
 
 #[event]
@@ -228,6 +253,8 @@ pub struct RootRetracted {
     pub attestor: Pubkey,
     pub slot: u64,
     pub ts: i64,
+    /// Appended last so older decoders that ignore trailing bytes keep working.
+    pub version: u8,
 }
 
 #[event]
@@ -240,6 +267,8 @@ pub struct RootClosed {
     pub lamports_returned: u64,
     pub slot: u64,
     pub ts: i64,
+    /// Appended last so older decoders that ignore trailing bytes keep working.
+    pub version: u8,
 }
 
 #[derive(Accounts)]
@@ -268,7 +297,7 @@ pub struct PostRoot<'info> {
     #[account(
         init,
         payer = attestor,
-        space = 8 + 4 + 4 + 8 + 32 + 32 + 1 + 8 + 1,
+        space = COUNTY_ROOT_V1_LEN,
         seeds = [b"county_root".as_ref(), fips.to_le_bytes().as_ref(), epoch.to_le_bytes().as_ref()],
         bump
     )]
