@@ -20,6 +20,10 @@ pub mod countyroot {
         cfg.attestor = attestor;
         cfg.paused = false;
         cfg.bump = ctx.bumps.config;
+        emit!(ConfigInitialized {
+            authority: cfg.authority,
+            attestor,
+        });
         Ok(())
     }
 
@@ -46,8 +50,20 @@ pub mod countyroot {
         root.merkle_root = merkle_root;
         root.schema = schema;
         root.status = STATUS_ACTIVE;
-        root.posted_at = Clock::get()?.unix_timestamp;
+        let clock = Clock::get()?;
+        root.posted_at = clock.unix_timestamp;
         root.bump = ctx.bumps.county_root;
+        emit!(RootPosted {
+            county_root: root.key(),
+            fips,
+            epoch,
+            n_parcels,
+            merkle_root,
+            schema,
+            attestor: ctx.accounts.attestor.key(),
+            slot: clock.slot,
+            ts: clock.unix_timestamp,
+        });
         Ok(())
     }
 
@@ -69,11 +85,29 @@ pub mod countyroot {
         require!(n_parcels > 0, CountyError::EmptyPacket);
         require!(merkle_root != [0u8; 32], CountyError::ZeroRoot);
 
+        let clock = Clock::get()?;
         let root = &mut ctx.accounts.county_root;
+        let old_n_parcels = root.n_parcels;
+        let old_root = root.merkle_root;
+        let old_schema = root.schema;
         root.n_parcels = n_parcels;
         root.merkle_root = merkle_root;
         root.schema = schema;
-        root.posted_at = Clock::get()?.unix_timestamp;
+        root.posted_at = clock.unix_timestamp;
+        emit!(RootUpdated {
+            county_root: root.key(),
+            fips: root.fips,
+            epoch: root.epoch,
+            old_n_parcels,
+            new_n_parcels: n_parcels,
+            old_root,
+            new_root: merkle_root,
+            old_schema,
+            new_schema: schema,
+            attestor: ctx.accounts.attestor.key(),
+            slot: clock.slot,
+            ts: clock.unix_timestamp,
+        });
         Ok(())
     }
 
@@ -83,7 +117,20 @@ pub mod countyroot {
             ctx.accounts.attestor.key() == ctx.accounts.config.attestor,
             CountyError::BadAttestor
         );
-        ctx.accounts.county_root.status = STATUS_RETRACTED;
+        let clock = Clock::get()?;
+        let root = &mut ctx.accounts.county_root;
+        let prev_status = root.status;
+        root.status = STATUS_RETRACTED;
+        emit!(RootRetracted {
+            county_root: root.key(),
+            fips: root.fips,
+            epoch: root.epoch,
+            merkle_root: root.merkle_root,
+            prev_status,
+            attestor: ctx.accounts.attestor.key(),
+            slot: clock.slot,
+            ts: clock.unix_timestamp,
+        });
         Ok(())
     }
 }
@@ -109,6 +156,57 @@ pub struct CountyRoot {
     pub status: u8,
     pub posted_at: i64,
     pub bump: u8,
+}
+
+// ---------- Events ----------
+// Emitted via emit! (program log "Program data: <base64>"), which needs no
+// extra accounts, so existing instruction account lists stay unchanged.
+
+#[event]
+pub struct ConfigInitialized {
+    pub authority: Pubkey,
+    pub attestor: Pubkey,
+}
+
+#[event]
+pub struct RootPosted {
+    pub county_root: Pubkey,
+    pub fips: u32,
+    pub epoch: u32,
+    pub n_parcels: u64,
+    pub merkle_root: [u8; 32],
+    pub schema: [u8; 32],
+    pub attestor: Pubkey,
+    pub slot: u64,
+    pub ts: i64,
+}
+
+#[event]
+pub struct RootUpdated {
+    pub county_root: Pubkey,
+    pub fips: u32,
+    pub epoch: u32,
+    pub old_n_parcels: u64,
+    pub new_n_parcels: u64,
+    pub old_root: [u8; 32],
+    pub new_root: [u8; 32],
+    pub old_schema: [u8; 32],
+    pub new_schema: [u8; 32],
+    pub attestor: Pubkey,
+    pub slot: u64,
+    pub ts: i64,
+}
+
+#[event]
+pub struct RootRetracted {
+    pub county_root: Pubkey,
+    pub fips: u32,
+    pub epoch: u32,
+    pub merkle_root: [u8; 32],
+    pub prev_status: u8,
+    pub attestor: Pubkey,
+    pub slot: u64,
+    pub ts: i64,
 }
 
 #[derive(Accounts)]

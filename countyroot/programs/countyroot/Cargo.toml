@@ -31,6 +31,8 @@ solana-message = "3.0.1"
 solana-transaction = "3.0.2"
 solana-signer = "3.0.0"
 solana-keypair = "3.0.1"
+base64 = "0.22"
+solana-clock = "3"
 
 
 [lints.rust]
