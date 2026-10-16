@@ -1,0 +1,38 @@
+{
+  "name": "@countyroot/sdk",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Verify CountyRoot parcel proofs and read CountyRoot accounts and events on Solana.",
+  "license": "SEE LICENSE IN LICENSE",
+  "homepage": "https://countyroot.com",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/JG21OX/countyroot",
+    "directory": "countyroot/sdk"
+  },
+  "type": "module",
+  "main": "dist/src/index.js",
+  "types": "dist/src/index.d.ts",
+  "bin": {
+    "countyroot": "dist/src/cli.js"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc -p .",
+    "test": "tsc -p . && node --test dist/test/"
+  },
+  "dependencies": {
+    "@solana/web3.js": "^1.99.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.0",
+    "@types/node": "^20.0.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

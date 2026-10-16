@@ -1,0 +1,76 @@
+#!/usr/bin/env node
+// countyroot proof  --csv <packet.csv> --parcel <id> [--out proof.json]
+// countyroot verify --root <root.json> (--proof <proof.json> | --csv <packet.csv> --parcel <id>)
+//                   [--fips N --epoch N] [--rpc <url|devnet|mainnet>] [--commitment finalized|confirmed]
+import fs from "fs";
+import { Connection, clusterApiUrl } from "@solana/web3.js";
+import { buildLevels, makeProof, packetLeaves, parsePacketCsv, verifyProof, Proof, leafHash } from "./merkle.js";
+import { fetchCountyRoot } from "./rpc.js";
+import { countyRootPda } from "./pda.js";
+import { STATUS_ACTIVE } from "./constants.js";
+
+function args(argv: string[]) {
+  const a: Record<string, string> = {};
+  for (let i = 0; i < argv.length; i++) {
+    if (!argv[i].startsWith("--")) throw new Error(`unexpected ${argv[i]}`);
+    if (i + 1 >= argv.length) throw new Error(`${argv[i]} needs a value`);
+    a[argv[i].slice(2)] = argv[++i];
+  }
+  return a;
+}
+
+function proofFromCsv(csv: string, parcel: string): Proof & { parcel_id: string; acres: string; lot_sqft: string } {
+  const rows = parsePacketCsv(fs.readFileSync(csv, "utf8"));
+  const idx = rows.findIndex((r) => r.parcel_id === parcel);
+  if (idx < 0) throw new Error(`parcel ${parcel} not found in ${csv}`);
+  const levels = buildLevels(packetLeaves(rows));
+  return { ...makeProof(levels, idx), parcel_id: rows[idx].parcel_id, acres: rows[idx].acres, lot_sqft: rows[idx].lot_sqft };
+}
+
+const rpcUrl = (v: string) => v.startsWith("http") ? v : clusterApiUrl(v === "mainnet" ? "mainnet-beta" : (v as any));
+
+export async function main(argv: string[], log = console.log): Promise<number> {
+  const [cmd, ...rest] = argv;
+  const a = args(rest);
+  if (cmd === "proof") {
+    if (!a.csv || !a.parcel) throw new Error("proof needs --csv and --parcel");
+    const p = proofFromCsv(a.csv, a.parcel);
+    const json = JSON.stringify(p, null, 2);
+    if (a.out) fs.writeFileSync(a.out, json + "\n"); else log(json);
+    return 0;
+  }
+  if (cmd !== "verify") { log("usage: countyroot proof|verify ... (see README)"); return 2; }
+  if (!a.root) throw new Error("verify needs --root <root.json>");
+  const rootDoc = JSON.parse(fs.readFileSync(a.root, "utf8"));
+  const proof: any = a.proof ? JSON.parse(fs.readFileSync(a.proof, "utf8")) : a.csv && a.parcel ? proofFromCsv(a.csv, a.parcel) : null;
+  if (!proof) throw new Error("verify needs --proof, or --csv and --parcel");
+  const fips = a.fips ? Number(a.fips) : rootDoc.fips, epoch = a.epoch ? Number(a.epoch) : rootDoc.epoch;
+  if (fips !== rootDoc.fips || epoch !== rootDoc.epoch) { log(`FAIL: root.json is fips ${rootDoc.fips} epoch ${rootDoc.epoch}`); return 1; }
+  let ok = true;
+  if (a.parcel && proof.parcel_id !== undefined && proof.parcel_id !== a.parcel) { log("FAIL: proof is for a different parcel"); return 1; }
+  if (proof.parcel_id !== undefined) {
+    const h = leafHash(proof.parcel_id, proof.acres, proof.lot_sqft).toString("hex");
+    if (h !== proof.leaf) { log("FAIL: leaf does not match parcel_id|acres|lot_sqft"); ok = false; }
+  }
+  if (Number(rootDoc.n_parcels) !== proof.leafCount) { log(`FAIL: proof leafCount ${proof.leafCount} != n_parcels ${rootDoc.n_parcels}`); ok = false; }
+  const offline = verifyProof(proof, rootDoc.merkle_root);
+  log(`${offline ? "OK  " : "FAIL"} proof -> root.json merkle_root ${rootDoc.merkle_root} (fips ${fips}, epoch ${epoch}, leaf ${proof.index + 1}/${proof.leafCount})`);
+  ok &&= offline;
+  if (a.rpc) {
+    const conn = new Connection(rpcUrl(a.rpc), (a.commitment as any) ?? "finalized");
+    const acct = await fetchCountyRoot(conn, fips, epoch, (a.commitment as any) ?? "finalized");
+    if (!acct) { log(`FAIL: no on-chain account ${countyRootPda(fips, epoch).toBase58()}`); return 1; }
+    const onchain = acct.merkleRoot.toString("hex");
+    const match = onchain === rootDoc.merkle_root && verifyProof(proof, acct.merkleRoot);
+    log(`${match ? "OK  " : "FAIL"} on-chain root ${onchain} (status ${acct.status === STATUS_ACTIVE ? "active" : "RETRACTED"}, version ${acct.version}, n_parcels ${acct.nParcels})`);
+    if (acct.status !== STATUS_ACTIVE) { log("FAIL: root is retracted"); ok = false; }
+    if (acct.nParcels !== BigInt(proof.leafCount)) { log("FAIL: on-chain n_parcels differs from proof leafCount"); ok = false; }
+    ok &&= match;
+  }
+  log(ok ? "VERIFIED" : "NOT VERIFIED");
+  return ok ? 0 : 1;
+}
+
+import { pathToFileURL } from "url";
+if (process.argv[1] && import.meta.url === pathToFileURL(fs.realpathSync(process.argv[1])).href)
+  main(process.argv.slice(2)).then((c) => process.exit(c)).catch((e) => { console.error(`ERROR: ${e.message}`); process.exit(2); });

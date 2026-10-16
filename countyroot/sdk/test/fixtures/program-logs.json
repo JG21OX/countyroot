@@ -1,0 +1,96 @@
+{
+ "note": "Real CountyRoot program logs captured from litesvm (test keys, synthetic values).",
+ "tx": {
+  "init": [
+   "Program 7mi96nPvP6SB1eApAd7vN2uUEBDvNR9xVvLqPDt3uvwg invoke [1]",
+   "Program log: Instruction: InitConfig",
+   "Program 11111111111111111111111111111111 invoke [2]",
+   "Program 11111111111111111111111111111111 success",
+   "Program data: tTHInBOnsluKiOPddAnxlf1S2y08ul1yymcJvx2UEhvzdIgBtA9vXIE5dw6ofRdfVqNUZsNMfszLjYqRtO43ol32D1uPybOU",
+   "Program 7mi96nPvP6SB1eApAd7vN2uUEBDvNR9xVvLqPDt3uvwg consumed 6547 of 200000 compute units",
+   "Program 7mi96nPvP6SB1eApAd7vN2uUEBDvNR9xVvLqPDt3uvwg success"
+  ],
+  "post": [
+   "Program 7mi96nPvP6SB1eApAd7vN2uUEBDvNR9xVvLqPDt3uvwg invoke [1]",
+   "Program log: Instruction: PostRoot",
+   "Program 11111111111111111111111111111111 invoke [2]",
+   "Program 11111111111111111111111111111111 success",
+   "Program data: 9fsEAFfj/OeA124YueJpKi/qVBUf3WF3h+kobiTGDu9fKsD5NSw49zYvAAACAAAAYNIBAAAAAAAEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBBsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbgTl3Dqh9F19Wo1Rmw0x+zMuNipG07jeiXfYPW4/Js5TSBAAAAAAAAAB452gAAAAAAQ==",
+   "Program 7mi96nPvP6SB1eApAd7vN2uUEBDvNR9xVvLqPDt3uvwg consumed 19843 of 200000 compute units",
+   "Program 7mi96nPvP6SB1eApAd7vN2uUEBDvNR9xVvLqPDt3uvwg success"
+  ],
+  "update": [
+   "Program 7mi96nPvP6SB1eApAd7vN2uUEBDvNR9xVvLqPDt3uvwg invoke [1]",
+   "Program log: Instruction: UpdateRoot",
+   "Program data: XjUWgI1xYueA124YueJpKi/qVBUf3WF3h+kobiTGDu9fKsD5NSw49zYvAAACAAAAYNIBAAAAAABh0gEAAAAAAAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbgTl3Dqh9F19Wo1Rmw0x+zMuNipG07jeiXfYPW4/Js5TSBAAAAAAAAAB452gAAAAAAQ==",
+   "Program 7mi96nPvP6SB1eApAd7vN2uUEBDvNR9xVvLqPDt3uvwg consumed 6816 of 200000 compute units",
+   "Program 7mi96nPvP6SB1eApAd7vN2uUEBDvNR9xVvLqPDt3uvwg success"
+  ],
+  "retract": [
+   "Program 7mi96nPvP6SB1eApAd7vN2uUEBDvNR9xVvLqPDt3uvwg invoke [1]",
+   "Program log: Instruction: RetractRoot",
+   "Program data: Y05rd8YvO8CA124YueJpKi/qVBUf3WF3h+kobiTGDu9fKsD5NSw49zYvAAACAAAABQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUBgTl3Dqh9F19Wo1Rmw0x+zMuNipG07jeiXfYPW4/Js5TSBAAAAAAAAAB452gAAAAAAQ==",
+   "Program 7mi96nPvP6SB1eApAd7vN2uUEBDvNR9xVvLqPDt3uvwg consumed 6559 of 200000 compute units",
+   "Program 7mi96nPvP6SB1eApAd7vN2uUEBDvNR9xVvLqPDt3uvwg success"
+  ],
+  "close": [
+   "Program 7mi96nPvP6SB1eApAd7vN2uUEBDvNR9xVvLqPDt3uvwg invoke [1]",
+   "Program log: Instruction: CloseRoot",
+   "Program data: nQ4uU/cIVfyA124YueJpKi/qVBUf3WF3h+kobiTGDu9fKsD5NSw49zYvAAACAAAABQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQWKiOPddAnxlf1S2y08ul1yymcJvx2UEhvzdIgBtA9vXJAbGAAAAAAA0gQAAAAAAAAAeOdoAAAAAAE=",
+   "Program 7mi96nPvP6SB1eApAd7vN2uUEBDvNR9xVvLqPDt3uvwg consumed 6332 of 200000 compute units",
+   "Program 7mi96nPvP6SB1eApAd7vN2uUEBDvNR9xVvLqPDt3uvwg success"
+  ],
+  "pause": [
+   "Program 7mi96nPvP6SB1eApAd7vN2uUEBDvNR9xVvLqPDt3uvwg invoke [1]",
+   "Program log: Instruction: SetPaused",
+   "Program data: 7rzVTobRstqKiOPddAnxlf1S2y08ul1yymcJvx2UEhvzdIgBtA9vXAAB0gQAAAAAAAAAeOdoAAAAAA==",
+   "Program 7mi96nPvP6SB1eApAd7vN2uUEBDvNR9xVvLqPDt3uvwg consumed 4026 of 200000 compute units",
+   "Program 7mi96nPvP6SB1eApAd7vN2uUEBDvNR9xVvLqPDt3uvwg success"
+  ],
+  "attestor": [
+   "Program 7mi96nPvP6SB1eApAd7vN2uUEBDvNR9xVvLqPDt3uvwg invoke [1]",
+   "Program log: Instruction: SetAttestor",
+   "Program data: wsdPSLn1eGyKiOPddAnxlf1S2y08ul1yymcJvx2UEhvzdIgBtA9vXIE5dw6ofRdfVqNUZsNMfszLjYqRtO43ol32D1uPybOU7UkoxijRwsbq6QM4kFmVYSlZJzpcY/k2NsFGFKyHN9HSBAAAAAAAAAB452gAAAAA",
+   "Program 7mi96nPvP6SB1eApAd7vN2uUEBDvNR9xVvLqPDt3uvwg consumed 4136 of 200000 compute units",
+   "Program 7mi96nPvP6SB1eApAd7vN2uUEBDvNR9xVvLqPDt3uvwg success"
+  ],
+  "propose": [
+   "Program 7mi96nPvP6SB1eApAd7vN2uUEBDvNR9xVvLqPDt3uvwg invoke [1]",
+   "Program log: Instruction: ProposeAuthority",
+   "Program 11111111111111111111111111111111 invoke [2]",
+   "Program 11111111111111111111111111111111 success",
+   "Program data: 9HVecDWXI1mKiOPddAnxlf1S2y08ul1yymcJvx2UEhvzdIgBtA9vXO1JKMYo0cLG6ukDOJBZlWEpWSc6XGP5NjbBRhSshzfR0gQAAAAAAAAAeOdoAAAAAA==",
+   "Program 7mi96nPvP6SB1eApAd7vN2uUEBDvNR9xVvLqPDt3uvwg consumed 11266 of 200000 compute units",
+   "Program 7mi96nPvP6SB1eApAd7vN2uUEBDvNR9xVvLqPDt3uvwg success"
+  ],
+  "cancel": [
+   "Program 7mi96nPvP6SB1eApAd7vN2uUEBDvNR9xVvLqPDt3uvwg invoke [1]",
+   "Program log: Instruction: CancelAuthority",
+   "Program data: ySSSEy9lQfiKiOPddAnxlf1S2y08ul1yymcJvx2UEhvzdIgBtA9vXO1JKMYo0cLG6ukDOJBZlWEpWSc6XGP5NjbBRhSshzfR0gQAAAAAAAAAeOdoAAAAAA==",
+   "Program 7mi96nPvP6SB1eApAd7vN2uUEBDvNR9xVvLqPDt3uvwg consumed 6142 of 200000 compute units",
+   "Program 7mi96nPvP6SB1eApAd7vN2uUEBDvNR9xVvLqPDt3uvwg success"
+  ],
+  "propose2": [
+   "Program 7mi96nPvP6SB1eApAd7vN2uUEBDvNR9xVvLqPDt3uvwg invoke [1]",
+   "Program log: Instruction: ProposeAuthority",
+   "Program 11111111111111111111111111111111 invoke [2]",
+   "Program 11111111111111111111111111111111 success",
+   "Program data: 9HVecDWXI1mKiOPddAnxlf1S2y08ul1yymcJvx2UEhvzdIgBtA9vXO1JKMYo0cLG6ukDOJBZlWEpWSc6XGP5NjbBRhSshzfR0gQAAAAAAAAAeOdoAAAAAA==",
+   "Program 7mi96nPvP6SB1eApAd7vN2uUEBDvNR9xVvLqPDt3uvwg consumed 11266 of 200000 compute units",
+   "Program 7mi96nPvP6SB1eApAd7vN2uUEBDvNR9xVvLqPDt3uvwg success"
+  ],
+  "accept": [
+   "Program 7mi96nPvP6SB1eApAd7vN2uUEBDvNR9xVvLqPDt3uvwg invoke [1]",
+   "Program log: Instruction: AcceptAuthority",
+   "Program data: HxOumARS1+KKiOPddAnxlf1S2y08ul1yymcJvx2UEhvzdIgBtA9vXO1JKMYo0cLG6ukDOJBZlWEpWSc6XGP5NjbBRhSshzfR0gQAAAAAAAAAeOdoAAAAAA==",
+   "Program 7mi96nPvP6SB1eApAd7vN2uUEBDvNR9xVvLqPDt3uvwg consumed 7053 of 200000 compute units",
+   "Program 7mi96nPvP6SB1eApAd7vN2uUEBDvNR9xVvLqPDt3uvwg success"
+  ]
+ },
+ "keys": {
+  "authority": "AKnL4NNf3DGWZJS6cPknBuEGnVsV4A4m5tgebLHaRSZ9",
+  "attestor": "9hSR6S7WPtxmTojgo6GG3k4yDPecgJY292j7xrsUGWBu",
+  "newKey": "GyGKxMyg1p9SsHfm15MkNUu1u9TN2JtTspcdmrtGUdse",
+  "countyRoot": "9fwiLi2GQsKwdcABmvd6mLEwmZkCbhzePxdamTTuixX8"
+ }
+}
