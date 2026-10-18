@@ -1,0 +1,8 @@
+{
+  "name": "countyroot-verifier",
+  "private": true,
+  "type": "module",
+  "description": "Static browser page that verifies one CountyRoot parcel against the on-chain root.",
+  "license": "PolyForm-Shield-1.0.0",
+  "scripts": { "test": "node --test test/" }
+}

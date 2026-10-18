@@ -21,3 +21,9 @@ roots/**/*_raw.json
 # local keys / data
 *.root.json
 .vscode/
+
+# verify-page proof sidecars (built by scripts/build_proofs.mjs; uploaded to R2, never committed)
+**/*.proofs/
+upload-list.txt
+upload-data.txt
+upload-index.txt

@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Verify a parcel · CountyRoot</title>
+  <meta name="description" content="Check that one parcel is in a CountyRoot county packet whose fingerprint is on Solana. Runs in your browser." />
+  <link rel="icon" href="/CountyRoot-square.png" />
+  <style>
+    :root { --bg:#07070a; --ink:#e8e6ef; --mute:#8b8898; --line:#222230; --accent:#14f195; --bad:#ff7b7b; --amber:#ffcf5c; }
+    * { box-sizing:border-box; margin:0; padding:0; }
+    body { background:var(--bg); color:var(--ink); font:16px/1.5 ui-sans-serif, system-ui, sans-serif; }
+    header, main { max-width:760px; margin:0 auto; padding:28px 20px; }
+    header { display:flex; gap:16px; align-items:center; border-bottom:1px solid var(--line); }
+    header img { width:48px; height:48px; }
+    h1 { font-size:22px; font-weight:600; letter-spacing:-0.02em; }
+    h2 { font-size:16px; font-weight:600; margin:22px 0 8px; }
+    a { color:var(--accent); }
+    .sub, .note { color:var(--mute); font-size:14px; }
+    .warn { color:var(--bad); font-size:13px; margin:14px 0; }
+    form { display:grid; gap:10px; margin:20px 0; }
+    label { font-size:13px; color:var(--mute); }
+    select, input, button { width:100%; padding:9px 11px; background:#0d0d12; color:var(--ink); border:1px solid var(--line); border-radius:6px; font:inherit; font-size:15px; }
+    select:focus, input:focus { outline:none; border-color:var(--accent); }
+    button { background:var(--accent); color:#06060a; font-weight:600; cursor:pointer; border:0; }
+    button:disabled { opacity:.5; cursor:wait; }
+    #status { margin:16px 0; font-size:14px; color:var(--mute); min-height:1.5em; }
+    .banner { border:1px solid var(--line); border-radius:8px; padding:12px 14px; margin:14px 0; font-size:14px; }
+    .banner.ok { border-color:#14f19566; } .banner.amber { border-color:#ffcf5c88; color:var(--amber); } .banner.bad { border-color:#ff7b7b88; color:var(--bad); }
+    .result { border:1px solid var(--line); border-radius:8px; padding:14px; margin:12px 0; }
+    .result.ok { border-color:#14f19588; } .result.bad { border-color:#ff7b7b88; }
+    .verdict { font-weight:700; font-size:17px; margin-bottom:6px; }
+    .result.ok .verdict { color:var(--accent); } .result.bad .verdict { color:var(--bad); }
+    dl { display:grid; grid-template-columns:150px 1fr; gap:4px 12px; font-size:13px; }
+    dt { color:var(--mute); } dd { word-break:break-all; }
+    code { font-size:12px; color:#c4c0d4; }
+    ol.how { margin:8px 0 0 20px; font-size:14px; color:var(--mute); }
+    .trust { margin-top:10px; }
+    footer { color:var(--mute); font-size:13px; margin-top:36px; border-top:1px solid var(--line); padding-top:14px; }
+  </style>
+</head>
+<body>
+  <header>
+    <a href="/"><img src="/CountyRoot-square.png" alt="CountyRoot" /></a>
+    <div>
+      <h1>Verify a parcel</h1>
+      <p class="sub">Checks one parcel against the county's fingerprint on Solana, in your browser.</p>
+    </div>
+  </header>
+  <main>
+    <p class="warn">Not a deed. Not a title. Not a token. A match means this parcel row is in the county extract CountyRoot fingerprinted. The county remains the legal source.</p>
+    <form id="f" autocomplete="off">
+      <label for="county">County</label>
+      <select id="county" required><option value="">Loading counties…</option></select>
+      <label for="parcel">Parcel ID (as the county writes it; case and surrounding spaces are ignored)</label>
+      <input id="parcel" required placeholder="e.g. 0000000ROW" spellcheck="false" />
+      <button id="go" type="submit" disabled>Verify</button>
+    </form>
+    <div id="status" role="status" aria-live="polite"></div>
+    <div id="out" data-state="idle"></div>
+
+    <h2>How this works</h2>
+    <ol class="how">
+      <li>Your browser downloads a few small proof files for this county (about 100 KB or less each), not the whole parcel list.</li>
+      <li>It recomputes the parcel's fingerprint (leaf) from the row: <code>sha256(parcel_id|acres|lot_sqft)</code>.</li>
+      <li>It hashes that leaf up the Merkle tree to a root, using the neighbouring fingerprints from the proof files.</li>
+      <li>It reads the county's root account from Solana Devnet (finalized) and checks it is CountyRoot's, active, for this county and epoch, and equal to the computed root.</li>
+    </ol>
+    <p class="note trust">The proof files are not trusted: if any byte in them is wrong, the computed root won't match. If Solana can't be reached, the page compares with the fingerprint published on this site instead and tells you so; open the Explorer link to confirm it yourself. For a check that doesn't rely on this website, use the CountyRoot SDK's <code>countyroot verify</code> with the full parcel list.</p>
+    <footer><a href="/">← All counties</a></footer>
+  </main>
+  <script type="module" src="/verify/verify.js"></script>
+</body>
+</html>
