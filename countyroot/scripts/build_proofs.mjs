@@ -154,10 +154,14 @@ export async function selfCheck({ files, index, levels, sdk, sample }) {
   if (seen !== n) throw new Error(`self-check: shards hold ${seen} rows, expected ${n}`);
   return idx.length;
 }
-function pickSample(n, m, chunk) {
+export function pickSample(n, m, chunk) {
   const s = new Set([0, 1, n - 1, n - 2, Math.floor(n / 2)].filter((x) => x >= 0 && x < n));
   for (let k = chunk; k < n; k += chunk) { s.add(k - 1); s.add(k); }
-  let x = 12345; while (s.size < Math.min(n, m + s.size)) { x = (x * 1103515245 + 12345) % 2147483648; s.add(x % n); if (s.size >= m * 2) break; }
+  // m random rows on top of the edge rows, deterministic (xorshift32); always terminates.
+  const target = Math.min(n, s.size + m);
+  let x = 12345;
+  for (let tries = 0; s.size < target && tries < 50 * target; tries++) { x ^= x << 13; x ^= x >>> 17; x ^= x << 5; s.add((x >>> 0) % n); }
+  for (let i = 0; s.size < target; i++) s.add(i); // fill any gap in order
   return [...s].sort((a, b) => a - b);
 }
 

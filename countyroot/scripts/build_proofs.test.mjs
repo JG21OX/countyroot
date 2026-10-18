@@ -204,3 +204,13 @@ test("scan_proofs also scans alias terms and suggestion IDs", async () => {
   const r = await scanProofs({ dir: path.join(tmp, "scan2") });
   assert.equal(r.pii.length, 2);
 });
+
+test("pickSample terminates and returns the requested count for any n (regression: n between m and 2m hung)", async () => {
+  const { pickSample } = await import("./build_proofs.mjs");
+  for (const n of [1, 2, 5, 6695, 20000, 25292, 39999, 40000, 386068]) {
+    const s = pickSample(n, 20000, 2048);
+    assert.ok(s.length <= n && s.length >= Math.min(n, 20000), `n=${n} got ${s.length}`);
+    assert.ok(s.every((i) => Number.isInteger(i) && i >= 0 && i < n));
+    assert.equal(new Set(s).size, s.length);
+  }
+});
