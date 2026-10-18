@@ -321,7 +321,7 @@ export async function suggest(index, input, load, max = 10) {
 //   f.json       { fences: [keyV2(first row of chunk k), ...] }: leaves are sorted by key, so a lookup is a binary search
 //   r/<k>.json   { rows: [[parcel_id, occ, acres_micro, sqft_centi], ...] } for leaves k*chunk .. in leaf order
 //   c/<k>.bin    leaf hashes of chunk k; top.bin: chunk roots and every level above (promote-odd rule)
-//   x/<k>.json   optional county aliases (as in format 1)
+//   x/<k>.json   optional county aliases (as in format 1, type >= 1 only; normalized IDs need no index in v2)
 export const SCHEMA_V2_HEX = "b309043c77b9aa529244033ecbcaa030615fa949993c835bade21fd2abfbf00d";
 const LEAF_TAG_V2 = enc.encode("countyroot/leaf/v2"), ROOT_TAG_V2 = enc.encode("countyroot/root/v2");
 export function keyV2(id) {
@@ -425,14 +425,30 @@ export async function verifyParcelV2({ county, parcelId, load, onchain, index })
     return r;
   };
   // Binary search over leaves by key (fences narrow it to one or two chunks).
+  const search = async (q) => {
+    let lo = 0, hi = n;
+    {
+      let a = 0, b = nChunks; while (a < b) { const m = (a + b) >> 1; if (cmpKey(fences[m], q) < 0) a = m + 1; else b = m; }
+      lo = Math.max(0, a - 1) * C; hi = Math.min(n, a * C); // the first leaf with key >= q lies in [lo, hi]
+    }
+    while (lo < hi) { const m = (lo + hi) >> 1; if (cmpKey(keyV2((await rowAt(m))[0]), q) < 0) lo = m + 1; else hi = m; }
+    const matches = []; for (let i = lo; i < n && keyV2((await rowAt(i))[0]) === q; i++) matches.push(i);
+    return { lo, matches };
+  };
   const q = keyV2(typed);
-  let lo = 0, hi = n;
-  {
-    let a = 0, b = nChunks; while (a < b) { const m = (a + b) >> 1; if (cmpKey(fences[m], q) < 0) a = m + 1; else b = m; }
-    lo = Math.max(0, a - 1) * C; hi = Math.min(n, a * C); // the first leaf with key >= q lies in [lo, hi]
+  const { lo, matches } = await search(q);
+  if (!matches.length && index.n_xshards) {
+    // county aliases (e.g. a Property ID): a lookup aid only; the proof is on the parcel ID the alias points to
+    const nk = normKey(typed), x = (await load(`x/${await shardOf(nk, index.n_xshards)}.json`)).json.entries[nk] ?? [];
+    const rows = [], seen = new Map();
+    for (const [id, t] of x) {
+      if (!t || seen.has(id)) continue;
+      const via = index.alias_types?.[t - 1]?.label ?? `alias ${t}`;
+      seen.set(id, { id, via, aliasType: index.alias_types?.[t - 1] ?? null });
+      for (const i of (await search(keyV2(id))).matches) if ((await rowAt(i))[0] === id) { const r = await prove(i); r.via = via; rows.push(r); }
+    }
+    if (rows.length) return { found: true, rows, anchor, leafVersion: 2, resolution: { typed, mode: "alias", matches: [...seen.values()].filter((m) => rows.some((r) => r.parcel_id === m.id)) } };
   }
-  while (lo < hi) { const m = (lo + hi) >> 1; if (cmpKey(keyV2((await rowAt(m))[0]), q) < 0) lo = m + 1; else hi = m; }
-  const matches = []; for (let i = lo; i < n && keyV2((await rowAt(i))[0]) === q; i++) matches.push(i);
   if (matches.length) {
     const rows = [];
     for (const i of matches) rows.push(await prove(i));
@@ -450,4 +466,20 @@ export async function verifyParcelV2({ county, parcelId, load, onchain, index })
   for (let i = lo; i < Math.min(n, lo + 10); i++) { const id = (await rowAt(i))[0]; if (keyV2(id).startsWith(q)) suggestions.push(id); }
   return { found: false, rows: [], anchor, leafVersion: 2, resolution: { typed, mode: "none", matches: [] }, suggestions,
            absence: { ok, key: q, left, right, reason: ok ? "" : !ordered ? "the neighbouring rows are not in key order" : "a neighbouring row's proof failed" } };
+}
+
+/** Rebuild a v2 root from canonical rows [[id, occ, acres_micro, sqft_centi], ...] in leaf order (audit/test helper). */
+export async function rootFromRowsV2(fips, epoch, rows) {
+  const leaves = []; const B = 4096;
+  for (let i = 0; i < rows.length; i += B) leaves.push(...await Promise.all(rows.slice(i, i + B).map((r) => leafHashV2(fips, r[0], r[1], r[2], r[3]))));
+  let lv = leaves;
+  while (lv.length > 1) {
+    const nx = [];
+    for (let j = 0; j < lv.length; j += 2 * B) {
+      const jobs = []; for (let k = j; k < Math.min(lv.length, j + 2 * B); k += 2) jobs.push(k + 1 < lv.length ? nodeHashV2(lv[k], lv[k + 1]) : Promise.resolve(lv[k]));
+      nx.push(...await Promise.all(jobs));
+    }
+    lv = nx;
+  }
+  return { root: toHex(await rootHashV2(fips, epoch, rows.length, lv[0])), leaves };
 }

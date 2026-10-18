@@ -6,7 +6,8 @@ import fs from "fs";
 import os from "os";
 import path from "path";
 import { loadSdk } from "./verify.mjs";
-import { sidecarV2, diffV2, main } from "./build_v2.mjs";
+import { sidecarV2, diffV2, main, buildV2, applyNoids, noidOf, sampleV2 } from "./build_v2.mjs";
+import { verifyPacket, VerifyError } from "./verify.mjs";
 import * as V from "../verifier/cr-verify.js";
 
 const sdk = await loadSdk();
@@ -107,4 +108,91 @@ test("diffV2 and the CLI: same data -> no changes; a changed value is one change
   fs.writeFileSync(path.join(dir, "p.json"), JSON.stringify({ ...sdk.makeProofV2(b, 3), epoch: 4 }));
   assert.equal(await cli(["verify", "--root", path.join(dir, "r.json"), "--proof", path.join(dir, "p.json")], () => {}), 1);
   fs.rmSync(dir, { recursive: true, force: true });
+});
+
+// ---------- Phase 2: v2 packet CSV, NOID, aliases, the full offline build ----------
+function v1Packet(dir, { label = "T.XX", fips = 48317, epoch = 1, rows }) {
+  fs.mkdirSync(dir, { recursive: true });
+  const leaves = rows.map((r) => sdk.leafHash(r.parcel_id, r.acres, r.lot_sqft));
+  const lines = ["parcel_id,acres,lot_sqft,leaf", ...rows.map((r, i) => `${r.parcel_id},${r.acres},${r.lot_sqft},${leaves[i].toString("hex")}`)];
+  const csv = path.join(dir, `${label}.${epoch}.2026-10.csv`);
+  fs.writeFileSync(csv, lines.join("\n") + "\n");
+  fs.writeFileSync(csv.replace(/\.csv$/, ".root.json"), JSON.stringify({ label, fips, epoch, n_parcels: rows.length, merkle_root: sdk.merkleRoot(leaves).toString("hex"), schema: "sha256(utf8 parcel_id|acres_6dp|lot_sqft_2dp)" }));
+  return csv;
+}
+const fmt = (i) => ({ parcel_id: `R-${String(i).padStart(4, "0")}`, acres: (i / 8).toFixed(6), lot_sqft: (i * 5445).toFixed(2) });
+
+test("v2 packet CSV: written in leaf order, rebuilds the root, and the strict reader rejects edits", async () => {
+  const rows = [...Array.from({ length: 30 }, (_, i) => fmt(i)), { parcel_id: "R-0003", acres: "0.375000", lot_sqft: "16335.00" }, { parcel_id: 'Q,"X"', acres: "1.000000", lot_sqft: "43560.00" }];
+  const t = sdk.buildTreeV2(48317, 2, sdk.canonicalRowsV2(rows));
+  const csv = sdk.packetCsvV2(t);
+  assert.ok(csv.startsWith(sdk.CSV_HEADER_V2 + "\n"));
+  assert.ok(sdk.treeFromCsvV2(48317, 2, csv).root.equals(t.root));
+  assert.ok(!sdk.treeFromCsvV2(48317, 3, csv).root.equals(t.root), "epoch is bound into the root");
+  const lines = csv.split("\n");
+  const bad = {
+    swap: () => { const l = [...lines]; [l[2], l[3]] = [l[3], l[2]]; return l; },
+    occ: () => lines.map((l) => (l.includes(",1,") && l.startsWith("R-0003") ? l.replace(",1,", ",2,") : l)),
+    value: () => lines.map((l, i) => (i === 5 ? l.replace(/,(\d+),(\d+),/, (m, a, b) => `,${a},${Number(b) + 1},`) : l)),
+    leadingZero: () => lines.map((l, i) => (i === 5 ? l.replace(/^([^,]+),0,/, "$1,00,") : l)),
+    header: () => ["parcel_id,acres,lot_sqft,leaf", ...lines.slice(1)],
+  };
+  for (const [k, f] of Object.entries(bad)) assert.throws(() => sdk.treeFromCsvV2(48317, 2, f().join("\n")), undefined, k);
+  // browser verifier code rebuilds the same root from the same rows
+  const br = await V.rootFromRowsV2(48317, 2, t.rows.map((r) => [r.id, r.occ, r.acresMicro, r.sqftCenti]));
+  assert.equal(br.root, t.root.toString("hex"));
+});
+
+test("NOID: canonical-geometry hash matches the Python rule, replaces exactly one row, refuses leftovers", () => {
+  // value computed by states/noid.py for this canonical text (fips 40113)
+  const canon = "-961234567 365432100,-961234000 365432100,-961234000 365433000";
+  const id = noidOf(40113, canon);
+  assert.equal(id, "NOID-7F4FEBED5F49676A");
+  const rows = [{ parcel_id: "A" }, { parcel_id: "UNNUMBERED-2" }];
+  const e = { fips: 40113, old_id: "UNNUMBERED-2", noid: id, method: "geometry", canonical_geometry: canon, source_layer: "L", objectid: 7 };
+  const out = applyNoids(rows, 40113, [e]);
+  assert.equal(rows[1].parcel_id, id); assert.equal(out[0].from, "UNNUMBERED-2"); assert.equal(out[0].source_objectid, 7);
+  assert.throws(() => applyNoids([{ parcel_id: "UNNUMBERED-2" }], 40113, [{ ...e, noid: "NOID-0000000000000000" }]), /re-hash/);
+  assert.throws(() => applyNoids([{ parcel_id: "UNNUMBERED-9" }], 40113, []), /UNNUMBERED/);
+  assert.throws(() => applyNoids([{ parcel_id: "B" }], 40113, [e]), /exactly 1/);
+});
+
+test("full offline build: v1 packet -> v2 CSV/root.json/proofs; verifyPacket checks the v2 packet; aliases resolve", async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "v2build-"));
+  const rows = [...Array.from({ length: 50 }, (_, i) => fmt(i)), fmt(7)];
+  const csv = v1Packet(path.join(dir, "in"), { rows });
+  const al = path.join(dir, "a.json");
+  fs.writeFileSync(al, JSON.stringify({ label: "T.XX", type: { label: "Test Property ID", source: "x", note: "y" }, map: { "900": ["R-0010"], "901": ["NOPE"] } }));
+  const s = await buildV2({ csvPath: csv, outDir: path.join(dir, "out"), offline: true, aliasFiles: [al], chunk: 8, sample: 0 });
+  assert.equal(s.v2_epoch, 2); assert.equal(s.n_leaves, 51); assert.equal(s.rows_with_repeated_id, 1); assert.equal(s.proofs_checked, 51);
+  const base = path.join(dir, "out", "T.XX", "T.XX.2.2026-10");
+  const doc = JSON.parse(fs.readFileSync(base + ".root.json", "utf8"));
+  assert.equal(doc.leaf_version, 2); assert.equal(doc.schema_sha256, sdk.SCHEMA_V2.toString("hex")); assert.equal(doc.supersedes_epoch, 1);
+  const v = await verifyPacket({ csvPath: base + ".csv" });
+  assert.equal(v.root, doc.merkle_root); assert.equal(v.leafVersion, 2);
+  // deterministic: a second build is byte-identical
+  const s2 = await buildV2({ csvPath: csv, outDir: path.join(dir, "out2"), offline: true, aliasFiles: [al], chunk: 8 });
+  for (const f of [".csv", ".root.json", ".proofs/index.json", ".proofs/top.bin", ".proofs/x/0.json"])
+    assert.ok(fs.readFileSync(base + f).equals(fs.readFileSync(path.join(dir, "out2", "T.XX", "T.XX.2.2026-10" + f))), f);
+  assert.equal(s2.v2_root, s.v2_root);
+  // v2 root.json with a v1-style CSV, or a tampered v2 CSV, is refused
+  const t = fs.readFileSync(base + ".csv", "utf8").split("\n"); t[4] = t[4].replace(/,(\d+),([0-9a-f]{64})$/, (m, a, l) => `,${Number(a) + 1},${l}`);
+  fs.writeFileSync(base + ".csv", t.join("\n"));
+  await assert.rejects(verifyPacket({ csvPath: base + ".csv" }), (e) => e instanceof VerifyError);
+  // the browser verifier finds an alias through x/ and proves the target parcel
+  const pdir = path.join(dir, "out2", "T.XX", "T.XX.2.2026-10.proofs");
+  const load = async (n) => { const p = path.join(pdir, n); if (!fs.existsSync(p)) throw Object.assign(new Error("404"), { notFound: true }); const b = fs.readFileSync(p); return n.endsWith(".json") ? { json: JSON.parse(b) } : { bytes: new Uint8Array(b) }; };
+  const county = { label: "T.XX", fips: 48317, epoch: 2, n_parcels: 51, merkle_root: s.v2_root };
+  const onchain = async () => ({ fips: 48317, epoch: 2, nParcels: 51n, merkleRoot: s.v2_root, schema: V.SCHEMA_V2_HEX, status: 1, postedAt: 0, version: 1 });
+  let res = await V.verifyParcel({ county, parcelId: "900", load, onchain });
+  assert.equal(res.found, true); assert.equal(res.resolution.mode, "alias"); assert.equal(res.rows[0].parcel_id, "R-0010"); assert.ok(res.rows[0].ok); assert.equal(res.rows[0].via, "Test Property ID");
+  res = await V.verifyParcel({ county, parcelId: "R-0007", load, onchain });
+  assert.equal(res.rows.length, 2); assert.ok(res.rows.every((r) => r.ok));
+  res = await V.verifyParcel({ county, parcelId: "901", load, onchain });
+  assert.equal(res.found, false); assert.ok(res.absence.ok);
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test("sampleV2 always terminates and covers chunk edges", () => {
+  for (const n of [1, 2, 3, 1000, 20000, 33333, 2400000]) { const s = sampleV2(n, 256, 1024); assert.ok(s.length >= Math.min(n, 5)); assert.ok(s.every((i) => i >= 0 && i < n)); }
 });

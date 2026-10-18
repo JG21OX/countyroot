@@ -51,14 +51,14 @@ function shardBy(entries, perShard, maxBytes, render) {
  * Lookup aids (not part of the fingerprint): x/ alias shards and p/ prefix buckets.
  * aliases: [{ type: { label, source, note }, map: { term: [parcel_id, ...] } }]; every target must be a packet parcel ID.
  */
-export function buildLookup({ rows, aliases = [], maxBytes = DEFAULTS.maxBytes, perShard = 2500 }) {
+export function buildLookup({ rows, aliases = [], maxBytes = DEFAULTS.maxBytes, perShard = 2500, normalized = true, prefix = true }) {
   const ids = [...new Set(rows.map((r) => r.parcel_id))];
   const known = new Set(ids);
   const x = new Map(), add = (term, id, t) => {
     const k = V.normKey(term); if (!x.has(k)) x.set(k, []);
     const l = x.get(k); if (!l.some(([i, tt]) => i === id && tt === t)) l.push([id, t]);
   };
-  for (const id of ids) if (V.normKey(id) !== V.lookupKey(id)) add(id, id, 0);
+  if (normalized) for (const id of ids) if (V.normKey(id) !== V.lookupKey(id)) add(id, id, 0);
   const aliasStats = [];
   aliases.forEach((a, i) => {
     let terms = 0, links = 0, dropped = 0;
@@ -73,6 +73,7 @@ export function buildLookup({ rows, aliases = [], maxBytes = DEFAULTS.maxBytes, 
   const xs = shardBy([...x].sort((a, b) => (a[0] < b[0] ? -1 : 1)), perShard, maxBytes,
     (b, k) => JSON.stringify({ format: V.PROOF_FORMAT, shard: k, entries: Object.fromEntries(b) }));
   xs.files.forEach((b, k) => files.set(`x/${k}.json`, b));
+  if (!prefix) return { files, n_xshards: xs.n, alias_types: aliases.map((a) => a.type), prefix_len: null, n_prefix: 0, x_terms: x.size, aliasStats };
   // prefix buckets: a trie that splits only buckets too big for maxBytes, by one more character each time.
   // A bucket key k holds the IDs whose normKey starts with k and with no longer key; IDs equal to a split
   // prefix stay in a bucket keyed by that prefix itself.

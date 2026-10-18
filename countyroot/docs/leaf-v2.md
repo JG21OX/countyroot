@@ -90,11 +90,47 @@ This affects only 3 rows today (Osage.OK 1, EastBatonRouge.LA 2). They are rows 
 
 | Option | Stable across epochs? | Privacy |
 |---|---|---|
-| **(a) Geometry hash** (recommended): `NOID-` + first 10 base32 chars of `sha256("countyroot/geom/v1" ‖ u32 fips ‖ canonical WKB, coords rounded to 1e-7°, rings normalized)` | Yes, while the shape is unchanged. A resurvey gives a new ID, which is arguably a new parcel. | A parcel outline is public GIS, not data about a person. Anyone can recompute it, which is the point. |
+| **(a) Geometry hash** (chosen): `NOID-` + first 16 hex of `sha256("countyroot/geom/v1" ‖ 0x00 ‖ u32 fips ‖ canonical geometry text)` (rule below) | Yes, while the shape is unchanged. A resurvey gives a new ID, which is arguably a new parcel. | A parcel outline is public GIS, not data about a person. Anyone can recompute it, which is the point. |
 | (b) Source fallback key (OBJECTID/GlobalID): `SRC-<id>` | Only if the source keeps it. OBJECTIDs often renumber on republish. | Fine. |
 | (c) Hash of other attributes | Fragile | **Never hash names, owners, mailing or situs addresses.** They are low-entropy, so a hash is reversible by dictionary and is effectively disclosure. |
 
-Recommendation: (a), with (b) when there is no geometry, and position only as a last resort with a warning. This lives in the packet builder (`states/cr.py`, not yet in the repo), because packets carry no geometry. The prototype keeps the current 3 IDs unchanged.
+Decided: (a), with (b) only when a row has no geometry. Implemented in `scripts/noid.py` (reference, used by the
+packet builder) and checked by `scripts/build_v2.mjs` (`noidOf`, which re-hashes every replacement from its
+canonical geometry before building).
+
+**NOID rule (`countyroot/geom/v1`)**
+
+    NOID-<first 16 hex digits, upper case, of sha256("countyroot/geom/v1" || 0x00 || u32le fips || canonical_geometry)>
+
+`canonical_geometry` is ASCII text built from the source's public parcel outline only:
+
+1. Request the feature's geometry from the official source in WGS84 (`outSR=4326`).
+2. Each vertex becomes integers `(round(lon * 1e7), round(lat * 1e7))` (1e-7 degree, about 1 cm).
+3. Each ring: drop consecutive duplicate vertices and the closing vertex; orient exterior rings counter-clockwise
+   and holes clockwise (shoelace sign on the integers); rotate so the ring starts at its smallest `(x, y)`.
+4. Group rings into polygons (an exterior ring and the holes the source lists after it); sort the holes in a
+   polygon, then the polygons, by their text.
+5. Ring text `x y,x y,...`; a polygon is its rings joined by `/` (exterior first); the geometry is its polygons
+   joined by `;`.
+
+64 bits: the chance of a collision inside the largest county (2.4M parcels) is about 1.6e-7, and the builder
+refuses duplicates anyway. The NOID is stable while the outline is unchanged. Names, owners and addresses are never
+hashed or kept: the original ID is used only once, in memory, to find the source feature, and is never printed or
+written.
+
+The v2 root.json records each replacement (`id_replacements`: old ID, NOID, source layer, source object ID and the
+sha256 of the canonical geometry), so anyone can re-fetch the outline and recompute the NOID.
+
+Result for the 3 rows (each matched exactly one source feature; its outline area agrees with the packet's lot size
+to better than 3e-5):
+
+| County | Old ID | NOID | Source object |
+|---|---|---|---|
+| Osage.OK (40113) | UNNUMBERED-41938 | NOID-FF56C03DE20FF661 | INCOG Parcels_OsageCo OBJECTID 16541 |
+| EastBatonRouge.LA (22033) | UNNUMBERED-200154 | NOID-606909389DF132DB | EBR Tax_Parcel ID 189343 |
+| EastBatonRouge.LA (22033) | UNNUMBERED-200156 | NOID-9C043A41FF95D41F | EBR Tax_Parcel ID 193562 |
+
+The v1 epochs keep `UNNUMBERED-<line>` (their roots are on-chain); the NOIDs appear from the v2 epoch on.
 
 ## 3. On-chain impact
 
@@ -154,5 +190,5 @@ Recommendation: (a), with (b) when there is no geometry, and position only as a 
 1. **Duplicate IDs:** one leaf per row with `occ` (prototype), or one leaf per ID with the rows grouped inside it. Per-row is simpler and keeps the count equal to rows; grouping makes "the parcel" one leaf but changes the meaning of n.
 2. **Epoch bound in the root, not the leaf**, so unchanged parcels keep identical leaves across epochs (the point of fixing the Travis bug). The alternative binds epoch in the leaf and loses leaf-level diffs.
 3. **No program upgrade now** (schema = SCHEMA_V2, version byte stays 1). Do the version-byte, SUPERSEDED and latest-pointer changes once, together with item 4, before Mainnet.
-4. **UNNUMBERED replacement:** geometry hash (recommended) or source OBJECTID.
+4. **UNNUMBERED replacement:** geometry hash (chosen; see 2.5).
 5. **Publish v2 packets** sorted with integer columns (recommended) or keep the v1-style CSV and sort on the fly.

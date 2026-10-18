@@ -7,6 +7,7 @@ import {
   toUnits, unitsToDecimal, keyV2, canonicalRowsV2, buildTreeV2, makeProofV2, verifyProofV2, leafHashV2, nodeHashV2, rootHashV2,
   makeAbsenceProofV2, verifyAbsenceV2, findKeyV2, leafPreimageV2, SCHEMA_V2, SCHEMA_V1, parsePacketCsv, NOT_PROVIDED, RowV2,
 } from "../src/index.js";
+import * as L from "../src/index.js";
 
 const P = process.env.COUNTYROOT_PACKETS_DIR || "/workspace/countyroot";
 const pk = (...p: string[]) => path.join(P, ...p);
@@ -122,4 +123,18 @@ test("Miami-Dade: 1,193 repeated-ID rows handled deterministically; all 87 rows 
   assert.ok(buildTreeV2(12086, 3, canonicalRowsV2(shuffled)).root.equals(t.root), "row order in the CSV doesn't matter");
   const a = makeAbsenceProofV2(t, "3069340218781");
   assert.ok(verifyAbsenceV2(a, t.root, 12086, 3));
+});
+
+test("v2 packet CSV round trip: leaf order, integer columns, stored leaves; edits are rejected", () => {
+  const rows = [{ parcel_id: "B-2", acres: "1.5", lot_sqft: "65340" }, { parcel_id: "a-1", acres: "0.25", lot_sqft: "10890" },
+    { parcel_id: "B-2", acres: "0.5", lot_sqft: "21780" }, { parcel_id: 'X,"Y"', acres: "1", lot_sqft: "43560" }];
+  const t = L.buildTreeV2(7, 9, L.canonicalRowsV2(rows));
+  const csv = L.packetCsvV2(t);
+  assert.ok(L.isPacketCsvV2(csv));
+  assert.equal(csv.split("\n")[0], L.CSV_HEADER_V2);
+  assert.ok(L.treeFromCsvV2(7, 9, csv).root.equals(t.root));
+  assert.deepEqual(L.parsePacketCsvV2(csv).rows.map((r) => [r.id, r.occ]), t.rows.map((r) => [r.id, r.occ]));
+  const lines = csv.split("\n");
+  assert.throws(() => L.treeFromCsvV2(7, 9, [lines[0], lines[2], lines[1], ...lines.slice(3)].join("\n")));
+  assert.throws(() => L.treeFromCsvV2(7, 9, lines.map((l, i) => (i === 1 ? l.replace(/,0,(\d+),/, ",0,0$1,") : l)).join("\n")));
 });

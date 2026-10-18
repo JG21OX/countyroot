@@ -1,152 +1,33 @@
 // Headless-Chrome test of the verify page, served with the site's real CSP from a local server.
 //   node --experimental-websocket --test verifier/test/    (Node 20; Node >= 22 has WebSocket built in)
 // Env: COUNTYROOT_SITE_PUBLIC (built site, default /workspace/site/build/public)
-//      COUNTYROOT_PROOFS_DIR  (staged proof files, default /workspace/countyroot/stage/proofs)
+//      COUNTYROOT_PROOFS_DIR  (staged v1 proof files incl. the Travis alias build, e.g. /workspace/countyroot/stage/proofs-v2)
+//      COUNTYROOT_V2_DIR      (v2 build; Martin.TX from it is listed as v2 so both formats run side by side)
 //      CHROME (default google-chrome), COUNTYROOT_LIVE_RPC=0 to skip the case that proxies to the real Devnet RPC.
 // The local server serves the site, /packets/* from the proofs dir, and /rpc (a mock, or a proxy to Devnet), and
 // rewrites /verify/config.json to point at them, so the page runs under the production CSP with connect-src 'self'.
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "fs";
-import os from "os";
 import path from "path";
-import http from "http";
-import { spawn } from "child_process";
-import crypto from "crypto";
-const discriminatorHex = crypto.createHash("sha256").update("account:CountyRoot").digest().subarray(0, 8).toString("hex");
+import { startHarness, SCHEMA_V1, SCHEMA_V2 } from "./harness.mjs";
 
 const PUB = process.env.COUNTYROOT_SITE_PUBLIC || "/workspace/site/build/public";
-const PROOFS = process.env.COUNTYROOT_PROOFS_DIR || "/workspace/countyroot/stage/proofs";
-const CHROME = process.env.CHROME || "google-chrome";
+const PROOFS = process.env.COUNTYROOT_PROOFS_DIR || ["/workspace/countyroot/stage/proofs-v2", "/workspace/countyroot/stage/proofs"].find((d) => fs.existsSync(path.join(d, "Travis.TX"))) || "/workspace/countyroot/stage/proofs";
 const LIVE = process.env.COUNTYROOT_LIVE_RPC !== "0";
-if (typeof WebSocket === "undefined") throw new Error("run with node --experimental-websocket (Node 20) or Node >= 22");
-
-// ---- CSP and headers from the built _headers file (the "/*" block) ----
-function headersFor() {
-  const txt = fs.readFileSync(path.join(PUB, "_headers"), "utf8"), out = {};
-  let inAll = false;
-  for (const line of txt.split("\n")) {
-    if (/^\S/.test(line)) inAll = line.trim() === "/*";
-    else if (inAll && line.includes(":")) { const i = line.indexOf(":"); out[line.slice(0, i).trim()] = line.slice(i + 1).trim(); }
-  }
-  // HSTS / upgrade-insecure-requests would push 127.0.0.1 to https; drop only those for the local test.
-  delete out["Strict-Transport-Security"];
-  out["Content-Security-Policy"] = out["Content-Security-Policy"].replace(/;\s*upgrade-insecure-requests/, "");
-  return out;
-}
-const MIME = { ".html": "text/html; charset=utf-8", ".js": "text/javascript", ".json": "application/json", ".bin": "application/octet-stream", ".png": "image/png", ".css": "text/css" };
-const countiesDoc = JSON.parse(fs.readFileSync(path.join(PUB, "verify/counties.json"), "utf8"));
-const counties = countiesDoc.counties;
-// Leaf format v2 prototype: if a local v2 build of Martin.TX exists, the test site lists Martin.TX as its v2 epoch
-// (served from COUNTYROOT_V2_DIR) while every other county stays v1, so both formats run side by side.
-const V2DIR = process.env.COUNTYROOT_V2_DIR || "/workspace/countyroot/stage/v2";
-const SCHEMA_V1 = "1b0a0a99e80b71583619941720ccd746c9bd03551ca906bcb0a333839b29a427";
-const SCHEMA_V2 = "b309043c77b9aa529244033ecbcaa030615fa949993c835bade21fd2abfbf00d";
-const v2RootFile = fs.existsSync(path.join(V2DIR, "Martin.TX")) ? fs.readdirSync(path.join(V2DIR, "Martin.TX")).find((f) => f.endsWith(".v2.root.json")) : null;
+// Mixed formats: if a local v2 build of Martin.TX exists, the test site lists Martin.TX as its v2 epoch (served from
+// COUNTYROOT_V2_DIR) while every other county stays v1, so both formats run side by side.
+const V2DIR = process.env.COUNTYROOT_V2_DIR || "/workspace/countyroot/stage/v2-all";
+const isV2 = (f) => { try { return JSON.parse(fs.readFileSync(f, "utf8")).leaf_version === 2; } catch { return false; } };
+const v2RootFile = fs.existsSync(path.join(V2DIR, "Martin.TX")) ? fs.readdirSync(path.join(V2DIR, "Martin.TX")).find((f) => f.endsWith(".root.json") && isV2(path.join(V2DIR, "Martin.TX", f))) : null;
 const HAVE_V2 = !!v2RootFile;
-if (HAVE_V2) {
+const { state, server, verifyIn, noCsp, reset } = await startHarness({ pub: PUB, proofDirs: HAVE_V2 ? [PROOFS, V2DIR] : [PROOFS], patch: async (counties) => {
+  if (!HAVE_V2) return;
   const d = JSON.parse(fs.readFileSync(path.join(V2DIR, "Martin.TX", v2RootFile), "utf8"));
-  const { countyRootPda } = await import(path.resolve(path.dirname(new URL(import.meta.url).pathname), "../../sdk/dist/src/index.js"));
   const i = counties.findIndex((c) => c.label === "Martin.TX");
+  const { countyRootPda } = await import(path.resolve(path.dirname(new URL(import.meta.url).pathname), "../../sdk/dist/src/index.js"));
   counties[i] = { ...counties[i], epoch: d.epoch, n_parcels: d.n_parcels, merkle_root: d.merkle_root, pda: countyRootPda(d.fips, d.epoch).toBase58(), leaf_version: 2 };
-}
-
-const state = { rpc: "mock", tamper: null, requests: [], packets: "/packets", v2schema: SCHEMA_V2 };
-function accountB64(c, status = 1) {
-  const d = Buffer.alloc(99); Buffer.from(discriminatorHex, "hex").copy(d, 0);
-  d.writeUInt32LE(c.fips, 8); d.writeUInt32LE(c.epoch, 12); d.writeBigUInt64LE(BigInt(c.n_parcels), 16);
-  Buffer.from(c.merkle_root, "hex").copy(d, 24); Buffer.from(c.leaf_version === 2 ? state.v2schema : SCHEMA_V1, "hex").copy(d, 56); d[88] = status; d.writeBigInt64LE(1792000000n, 89); d[97] = 255; d[98] = 1;
-  return d.toString("base64");
-}
-async function rpc(req, body) {
-  const j = JSON.parse(body), pda = j.params?.[0];
-  if (state.rpc === "down") return [503, { error: "down" }];
-  if (state.rpc === "live") {
-    const r = await fetch("https://api.devnet.solana.com", { method: "POST", headers: { "content-type": "application/json" }, body });
-    return [r.status, await r.json()];
-  }
-  const c = counties.find((x) => x.pda === pda);
-  if (!c) return [200, { jsonrpc: "2.0", id: j.id, result: { context: { slot: 1 }, value: null } }];
-  return [200, { jsonrpc: "2.0", id: j.id, result: { context: { slot: 1 }, value: { owner: "7mi96nPvP6SB1eApAd7vN2uUEBDvNR9xVvLqPDt3uvwg", data: [accountB64(c, state.rpc === "retracted" ? 2 : 1), "base64"], lamports: 1, executable: false } } }];
-}
-const server = http.createServer(async (req, res) => {
-  const hdrs = headersFor(), url = new URL(req.url, "http://x");
-  state.requests.push(url.pathname);
-  const send = (code, body, type) => { res.writeHead(code, { ...hdrs, "Content-Type": type, "Cache-Control": "no-store" }); res.end(body); };
-  if (url.pathname === "/rpc") {
-    let b = ""; req.on("data", (d) => (b += d)); await new Promise((r) => req.on("end", r));
-    const [code, j] = await rpc(req, b); return send(code, JSON.stringify(j), "application/json");
-  }
-  if (url.pathname === "/verify/counties.json") return send(200, JSON.stringify({ ...countiesDoc, counties }), "application/json");
-  if (url.pathname === "/verify/config.json") return send(200, JSON.stringify({ rpc: "/rpc", packets: state.packets, cluster: "devnet" }), "application/json");
-  let file;
-  if (url.pathname.startsWith("/packets/")) {
-    const rel = decodeURIComponent(url.pathname.slice(9));
-    file = path.join(PROOFS, rel);
-    if (HAVE_V2 && !fs.existsSync(file) && fs.existsSync(path.join(V2DIR, rel))) file = path.join(V2DIR, rel);
-  }
-  else { file = path.join(PUB, decodeURIComponent(url.pathname)); if (url.pathname.endsWith("/")) file = path.join(file, "index.html"); }
-  if (!file.startsWith(PUB) && !file.startsWith(PROOFS) && !file.startsWith(V2DIR)) return send(403, "no", "text/plain");
-  if (!fs.existsSync(file) || !fs.statSync(file).isFile()) return send(404, "not found", "text/plain");
-  let body = fs.readFileSync(file);
-  if (state.tamper && url.pathname.startsWith("/packets/")) body = state.tamper(url.pathname, body);
-  send(200, body, MIME[path.extname(file)] || "application/octet-stream");
-});
-await new Promise((r) => server.listen(0, "127.0.0.1", r));
-const ORIGIN = `http://127.0.0.1:${server.address().port}`;
-
-// ---- minimal CDP driver ----
-const profile = fs.mkdtempSync(path.join(os.tmpdir(), "cr-chrome-"));
-const chrome = spawn(CHROME, ["--headless=new", "--no-first-run", "--no-default-browser-check", "--disable-gpu", "--remote-debugging-port=0", `--user-data-dir=${profile}`, "about:blank"], { stdio: "ignore" });
-let port; for (let i = 0; i < 100 && !port; i++) { await new Promise((r) => setTimeout(r, 100)); try { port = fs.readFileSync(path.join(profile, "DevToolsActivePort"), "utf8").split("\n")[0]; } catch {} }
-if (!port) throw new Error("Chrome did not start");
-
-async function openPage(url) {
-  const t = await (await fetch(`http://127.0.0.1:${port}/json/new?about:blank`, { method: "PUT" })).json();
-  const ws = new WebSocket(t.webSocketDebuggerUrl); await new Promise((r, j) => { ws.onopen = r; ws.onerror = j; });
-  let id = 0; const pending = new Map(), logs = [];
-  ws.onmessage = (m) => {
-    const msg = JSON.parse(m.data);
-    if (msg.id && pending.has(msg.id)) { pending.get(msg.id)(msg); pending.delete(msg.id); }
-    if (msg.method === "Log.entryAdded") logs.push(msg.params.entry.text);
-    if (msg.method === "Runtime.consoleAPICalled") logs.push(msg.params.args.map((a) => a.value ?? a.description).join(" "));
-    if (msg.method === "Runtime.exceptionThrown") logs.push("EXCEPTION " + (msg.params.exceptionDetails.exception?.description ?? msg.params.exceptionDetails.text));
-  };
-  const send = (method, params = {}) => new Promise((r) => { const i = ++id; pending.set(i, r); ws.send(JSON.stringify({ id: i, method, params })); });
-  await send("Runtime.enable"); await send("Log.enable"); await send("Page.enable");
-  await send("Page.navigate", { url });
-  const evalJs = async (expr) => (await send("Runtime.evaluate", { expression: expr, returnByValue: true })).result?.result?.value;
-  return { evalJs, logs, close: async () => { ws.close(); await fetch(`http://127.0.0.1:${port}/json/close/${t.id}`); } };
-}
-async function verifyIn(label, parcel, { timeout = 60000 } = {}) {
-  const p = await openPage(`${ORIGIN}/verify/?c=${encodeURIComponent(label)}&p=${encodeURIComponent(parcel)}`);
-  const t0 = Date.now(); let st;
-  while (Date.now() - t0 < timeout) {
-    st = await p.evalJs("document.getElementById('out') && document.getElementById('out').dataset.state");
-    if (st && st !== "idle" && st !== "running") break;
-    await new Promise((r) => setTimeout(r, 150));
-  }
-  const info = await p.evalJs(`JSON.stringify({ state: document.getElementById('out').dataset.state,
-    anchor: (document.querySelector('[data-anchor]')||{}).dataset?.anchor || null,
-    rows: [...document.querySelectorAll('.result')].map(e => ({ ok: e.dataset.ok, row: e.dataset.row, verdict: e.querySelector('.verdict').textContent })),
-    status: document.getElementById('status').textContent,
-    resolved: (document.querySelector('[data-resolved]')||{dataset:{}}).dataset.resolved || null,
-    matched: (document.querySelector('[data-resolved]')||{dataset:{}}).dataset.matched || null,
-    parcels: [...document.querySelectorAll('.result dd:first-of-type')].map(e => e.textContent),
-    suggestions: [...document.querySelectorAll('[data-sugg]')].map(e => ({ id: e.dataset.sugg, href: e.getAttribute('href') })),
-    absence: (document.querySelector('[data-absence]')||{dataset:{}}).dataset.absence || null,
-    hint: (document.getElementById('hint')||{}).textContent || '', text: document.getElementById('out').innerText.slice(0, 600) })`);
-  const r = { ...JSON.parse(info), ms: Date.now() - t0, logs: p.logs.slice() };
-  await p.close();
-  return r;
-}
-const noCsp = (r) => assert.ok(!r.logs.some((l) => /Content Security Policy|Refused to/i.test(l)), "CSP violations: " + r.logs.join(" | "));
-const reset = () => { state.rpc = "mock"; state.tamper = null; state.packets = "/packets"; state.v2schema = SCHEMA_V2; };
-
-test.after(async () => {
-  const exited = new Promise((r) => chrome.once("exit", r)); chrome.kill(); await Promise.race([exited, new Promise((r) => setTimeout(r, 5000))]);
-  server.close(); try { fs.rmSync(profile, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }); } catch {}
-});
+} });
 
 test("Travis.TX: a parcel verifies against the root (mock RPC)", async () => {
   reset(); const r = await verifyIn("Travis.TX", "0000000ROW");
@@ -255,7 +136,7 @@ test("tampered row still fails when found through an alias", async () => {
 });
 
 // ---------- leaf format v2 alongside v1 (local v2 build of Martin.TX; all other counties v1) ----------
-const v2skip = !HAVE_V2 && "no local v2 build (node scripts/build_v2.mjs --csv Martin.TX.1.2026-10.csv --out stage/v2)";
+const v2skip = !HAVE_V2 && "no local v2 build (node scripts/build_v2.mjs --csv Martin.TX.1.2026-10.csv --out stage/v2-all)";
 const v2rows = HAVE_V2 ? (() => { const d = path.join(V2DIR, "Martin.TX", fs.readdirSync(path.join(V2DIR, "Martin.TX")).find((f) => f.endsWith(".proofs"))); return { dir: d, rows: JSON.parse(fs.readFileSync(path.join(d, "r/3.json"))).rows }; })() : null;
 test("v2: a Martin.TX parcel verifies against a v2 root (schema v2), next to v1 counties", { skip: v2skip }, async () => {
   reset(); const id = v2rows.rows[17][0];

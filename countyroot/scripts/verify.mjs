@@ -104,7 +104,11 @@ export async function verifyPacket({ csvPath, rootPath, expect = {}, pii = true,
   for (const k of ["fips", "epoch", "n_parcels", "merkle_root"]) if (doc[k] === undefined) throw new VerifyError(`root.json missing ${k}`);
   if (doc.program && doc.program !== "7mi96nPvP6SB1eApAd7vN2uUEBDvNR9xVvLqPDt3uvwg") throw new VerifyError(`root.json is for another program: ${doc.program}`);
 
-  const rows = parsePacketCsv(fs.readFileSync(csvPath, "utf8"));
+  const text = fs.readFileSync(csvPath, "utf8");
+  const S = await loadSdk();
+  if (doc.leaf_version === 2 || S.isPacketCsvV2(text)) return verifyPacketV2({ S, doc, text, csvPath, rootPath, expect, pii, allowlist });
+  if (doc.schema_sha256 && doc.schema_sha256 !== S.SCHEMA_V1.toString("hex")) throw new VerifyError(`root.json schema ${doc.schema_sha256} is not the v1 leaf schema`);
+  const rows = parsePacketCsv(text);
   const leaves = new Array(rows.length);
   for (let i = 0; i < rows.length; i++) {
     const r = rows[i];
@@ -133,6 +137,28 @@ export async function verifyPacket({ csvPath, rootPath, expect = {}, pii = true,
   cmp("n_parcels", expect.nParcels, doc.n_parcels);
   cmp("merkle_root", expect.merkleRoot, doc.merkle_root);
   return { ok: true, csvPath, rootPath, label: doc.label, fips: doc.fips, epoch: doc.epoch, nParcels: rows.length, root };
+}
+
+/** Leaf format v2 packet (docs/leaf-v2.md): strict CSV, leaf order, occ, stored leaves, root bound to fips/epoch/n. */
+async function verifyPacketV2({ S, doc, text, csvPath, rootPath, expect, pii, allowlist }) {
+  if (doc.leaf_version !== 2) throw new VerifyError("v2 packet CSV but root.json is not leaf_version 2");
+  if (!S.isPacketCsvV2(text)) throw new VerifyError("root.json is leaf_version 2 but the CSV is not a v2 packet CSV");
+  if (doc.schema_sha256 !== S.SCHEMA_V2.toString("hex")) throw new VerifyError(`root.json schema_sha256 ${doc.schema_sha256} is not the v2 schema ${S.SCHEMA_V2.toString("hex")}`);
+  let t;
+  try { t = S.treeFromCsvV2(Number(doc.fips), Number(doc.epoch), text); } catch (e) { throw new VerifyError(e.message); }
+  if (pii) {
+    const hits = scanRows(t.rows.map((r) => ({ parcel_id: r.id })), allowlist ?? loadAllowlist());
+    if (hits.length) {
+      const shown = hits.slice(0, 10).map((h) => `row ${h.row} ${h.reason} "${h.masked}"`).join("; ");
+      throw new VerifyError(`${hits.length} parcel ID(s) look like personal info (${shown}${hits.length > 10 ? "; ..." : ""}). Replace them in a new epoch, or add a reviewed place name to scripts/pii-allowlist.json`);
+    }
+  }
+  if (t.rows.length !== Number(doc.n_parcels)) throw new VerifyError(`CSV has ${t.rows.length} rows but root.json n_parcels is ${doc.n_parcels}`);
+  const root = t.root.toString("hex");
+  if (root !== doc.merkle_root) throw new VerifyError(`rebuilt v2 root ${root} != root.json merkle_root ${doc.merkle_root}`);
+  const cmp = (name, got, want) => { if (got !== undefined && String(got) !== String(want)) throw new VerifyError(`${name} to post (${got}) != packet ${name} (${want})`); };
+  cmp("fips", expect.fips, doc.fips); cmp("epoch", expect.epoch, doc.epoch); cmp("n_parcels", expect.nParcels, doc.n_parcels); cmp("merkle_root", expect.merkleRoot, doc.merkle_root);
+  return { ok: true, csvPath, rootPath, label: doc.label, fips: doc.fips, epoch: doc.epoch, nParcels: t.rows.length, root, leafVersion: 2, schema: doc.schema_sha256, tree: t };
 }
 
 function parseArgs(argv) {

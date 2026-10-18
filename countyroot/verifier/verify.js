@@ -80,7 +80,7 @@ function anchorBanner(c, a) {
   if (a.kind === "onchain")
     return el("div", { class: `banner ${a.ok ? "amber" : "bad"}`, "data-anchor": "onchain-problem" }, `On-chain check: ${a.problems.join("; ")}. `, link);
   if (a.kind === "onchain-missing")
-    return el("div", { class: "banner bad", "data-anchor": "onchain-missing" }, "No CountyRoot account was found on-chain for this county and epoch. ", link);
+    return el("div", { class: "banner bad", "data-anchor": "onchain-missing" }, "No CountyRoot account was found on-chain for this county and epoch. ", ...(c.leaf_version === 2 ? [`Epoch ${c.epoch} is this county's new format-v2 fingerprint and may not be posted yet; until it is, this result is not anchored. Earlier epochs are listed on the `, el("a", { href: `/archive/${encodeURIComponent(c.label)}.html`, textContent: "archive page" }), ". "] : []), link);
   return el("div", { class: "banner amber", "data-anchor": "published" }, `Solana could not be reached (${a.note.replace(/^on-chain check unavailable: /, "")}). Compared with the fingerprint published on this site instead. Confirm the root yourself: `, link);
 }
 

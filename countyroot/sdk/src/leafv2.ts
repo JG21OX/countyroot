@@ -170,3 +170,57 @@ export function verifyAbsenceV2(a: AbsenceProofV2, root: Buffer | string, fips: 
   if (a.right && !(cmpBytes(keyV2(a.right.row.id), k) > 0)) return false;
   return true;
 }
+
+/** v2 packet CSV: one row per leaf, in leaf order, integer columns; `leaf` = hex leaf hash (checked on read). */
+export const CSV_HEADER_V2 = "parcel_id,occ,acres_micro,sqft_centi,leaf";
+const csvField = (s: string) => (s.includes(",") || s.includes("\n") || s.startsWith('"') ? `"${s.replace(/"/g, '""')}"` : s);
+export function packetCsvV2(t: TreeV2): string {
+  const out: string[] = [CSV_HEADER_V2];
+  t.rows.forEach((r, i) => out.push(`${csvField(r.id)},${r.occ},${r.acresMicro},${r.sqftCenti},${t.levels[0][i].toString("hex")}`));
+  return out.join("\n") + "\n";
+}
+function splitCsvV2(line: string): string[] {
+  const out: string[] = []; let cur = "", q = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (q) { if (ch === '"') { if (line[i + 1] === '"') { cur += '"'; i++; } else q = false; } else cur += ch; }
+    else if (ch === '"' && cur === "") q = true; else if (ch === ",") { out.push(cur); cur = ""; } else cur += ch;
+  }
+  out.push(cur); return out;
+}
+const uint = (s: string, what: string, line: number): bigint => {
+  if (!/^(0|[1-9]\d*)$/.test(s)) throw new Error(`line ${line}: ${what} is not a canonical non-negative integer: ${JSON.stringify(s)}`);
+  return BigInt(s);
+};
+export function isPacketCsvV2(text: string): boolean { return text.slice(0, CSV_HEADER_V2.length + 2).replace(/\r/g, "").startsWith(CSV_HEADER_V2 + "\n"); }
+/** Parse a v2 packet CSV (strict: exact header, canonical integers). Returns rows and the stored leaf column. */
+export function parsePacketCsvV2(text: string): { rows: RowV2[]; leaves: string[] } {
+  const lines = text.split("\n"); if (lines[lines.length - 1] === "") lines.pop();
+  if (lines[0] !== CSV_HEADER_V2) throw new Error(`not a v2 packet CSV (header must be ${CSV_HEADER_V2})`);
+  const rows: RowV2[] = [], leaves: string[] = [];
+  for (let i = 1; i < lines.length; i++) {
+    const c = splitCsvV2(lines[i]);
+    if (c.length !== 5) throw new Error(`line ${i + 1}: expected 5 columns, got ${c.length}`);
+    const occ = uint(c[1], "occ", i + 1);
+    if (occ > 0xffffffffn) throw new Error(`line ${i + 1}: occ too large`);
+    const am = uint(c[2], "acres_micro", i + 1), sc = uint(c[3], "sqft_centi", i + 1);
+    if (am > NOT_PROVIDED || sc > NOT_PROVIDED) throw new Error(`line ${i + 1}: value exceeds u64`);
+    if (!/^[0-9a-f]{64}$/.test(c[4])) throw new Error(`line ${i + 1}: leaf must be 64 lowercase hex`);
+    rows.push({ id: c[0], occ: Number(occ), acresMicro: am, sqftCenti: sc }); leaves.push(c[4]);
+  }
+  if (!rows.length) throw new Error("v2 packet CSV has no rows");
+  return { rows, leaves };
+}
+/** Rebuild the v2 tree from a v2 packet CSV: rows must be in leaf order with correct occ, and every stored leaf must match. */
+export function treeFromCsvV2(fips: number, epoch: number, text: string): TreeV2 {
+  const { rows, leaves } = parsePacketCsvV2(text);
+  for (let i = 0; i < rows.length; i++) {
+    const want = i > 0 && rows[i - 1].id === rows[i].id ? rows[i - 1].occ + 1 : 0;
+    if (rows[i].occ !== want) throw new Error(`line ${i + 2}: occ ${rows[i].occ} should be ${want}`);
+    if (i > 0 && rows[i - 1].id === rows[i].id && (rows[i - 1].acresMicro > rows[i].acresMicro || (rows[i - 1].acresMicro === rows[i].acresMicro && rows[i - 1].sqftCenti > rows[i].sqftCenti)))
+      throw new Error(`line ${i + 2}: repeated id not ordered by (acres, sqft)`);
+  }
+  const t = buildTreeV2(fips, epoch, rows); // refuses unsorted rows
+  t.levels[0].forEach((h, i) => { if (h.toString("hex") !== leaves[i]) throw new Error(`line ${i + 2}: stored leaf does not match the recomputed leaf`); });
+  return t;
+}

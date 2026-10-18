@@ -2,7 +2,7 @@
 //
 //   node scripts/scan_proofs.mjs --dir <proofs staging dir> [--forbid-ids-from A.csv[:B.csv]] [--except-ids-from C.csv[:D.csv]]
 //
-// 1. Every parcel ID and alias term in every s/, x/ and p/ file goes through scripts/pii.mjs (same rules and allowlist as verify/preflight).
+// 1. Every parcel ID and alias term in every s/, r/ (v2 rows), x/ and p/ file goes through scripts/pii.mjs (same rules and allowlist as verify/preflight).
 // 2. Optional: IDs that appear in --forbid-ids-from (e.g. an unredacted, retracted epoch) but not in --except-ids-from
 //    (e.g. the redacted epoch that replaced it) must not appear anywhere. Use this to prove a redaction carried over.
 // Only counts and masked IDs are printed. Exit 0 = clean, 1 = hits, 2 = usage error.
@@ -17,7 +17,7 @@ export function* shardFiles(dir) {
   for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
     const p = path.join(dir, e.name);
     if (e.isDirectory()) yield* shardFiles(p);
-    else if (e.isFile() && /\.json$/.test(e.name) && ["s", "x", "p"].includes(path.basename(path.dirname(p)))) yield p;
+    else if (e.isFile() && /\.json$/.test(e.name) && ["s", "x", "p", "r"].includes(path.basename(path.dirname(p)))) yield p;
   }
 }
 async function idsFromCsvs(list) {
