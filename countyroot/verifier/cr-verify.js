@@ -208,6 +208,31 @@ export async function fetchCountyRoot(rpcUrl, pda, { fetchImpl = globalThis.fetc
   } finally { if (t) clearTimeout(t); }
 }
 
+
+export const SCHEMA_V1_HEX = "1b0a0a99e80b71583619941720ccd746c9bd03551ca906bcb0a333839b29a427";
+/** Which root do we compare against? On-chain first; the published fingerprint only if the RPC is unreachable. */
+async function getAnchor(county, onchain, leafVersion) {
+  let anchor;
+  try {
+    const acct = await onchain(county);
+    if (!acct) anchor = { kind: "onchain-missing", ok: false, note: "no on-chain account at this address" };
+    else {
+      const probs = [];
+      if (acct.fips !== county.fips || acct.epoch !== county.epoch) probs.push(`on-chain account is fips ${acct.fips} epoch ${acct.epoch}`);
+      if (acct.status !== STATUS_ACTIVE) probs.push(acct.status === STATUS_RETRACTED ? "this epoch is RETRACTED on-chain" : `on-chain status ${acct.status}`);
+      // v2 roots carry schema = SCHEMA_V2; v1 proof files must never be checked against a v2 root or vice versa.
+      if (leafVersion === 2 ? acct.schema !== SCHEMA_V2_HEX : acct.schema === SCHEMA_V2_HEX)
+        probs.push(`the on-chain fingerprint format (schema ${acct.schema.slice(0, 12)}…) is not the v${leafVersion} format these proof files use`);
+      if (acct.merkleRoot !== county.merkle_root) probs.push("on-chain root differs from the published fingerprint (the on-chain root is used)");
+      anchor = { kind: "onchain", ok: probs.filter((p) => !p.startsWith("on-chain root differs")).length === 0, root: acct.merkleRoot,
+                 nParcels: Number(acct.nParcels), status: acct.status, postedAt: acct.postedAt, version: acct.version, schema: acct.schema, slot: acct.slot, problems: probs };
+    }
+  } catch (e) {
+    anchor = { kind: "published", ok: true, root: county.merkle_root, nParcels: county.n_parcels, note: `on-chain check unavailable: ${e.message || e}` };
+  }
+  return anchor;
+}
+
 /**
  * Full check for one parcel ID. `load(path)` fetches a file under the proofs base and returns
  * { json } for .json or { bytes } for .bin; it should throw { notFound: true } on 404.
@@ -217,27 +242,13 @@ export async function fetchCountyRoot(rpcUrl, pda, { fetchImpl = globalThis.fetc
  */
 export async function verifyParcel({ county, parcelId, load, onchain }) {
   const index = await load("index.json").then((r) => r.json);
+  if (index.format === 2) return verifyParcelV2({ county, parcelId, load, onchain, index });
   if (index.format !== PROOF_FORMAT) throw new Error(`unsupported proof format ${index.format}`);
   if (index.fips !== county.fips || index.epoch !== county.epoch) throw new Error("proof files are for a different county or epoch");
   const key = lookupKey(parcelId);
   if (!key) throw new Error("enter a parcel ID");
 
-  // Which root do we compare against? On-chain first; the published fingerprint only if the RPC is unreachable.
-  let anchor;
-  try {
-    const acct = await onchain(county);
-    if (!acct) anchor = { kind: "onchain-missing", ok: false, note: "no on-chain account at this address" };
-    else {
-      const probs = [];
-      if (acct.fips !== county.fips || acct.epoch !== county.epoch) probs.push(`on-chain account is fips ${acct.fips} epoch ${acct.epoch}`);
-      if (acct.status !== STATUS_ACTIVE) probs.push(acct.status === STATUS_RETRACTED ? "this epoch is RETRACTED on-chain" : `on-chain status ${acct.status}`);
-      if (acct.merkleRoot !== county.merkle_root) probs.push("on-chain root differs from the published fingerprint (the on-chain root is used)");
-      anchor = { kind: "onchain", ok: probs.filter((p) => !p.startsWith("on-chain root differs")).length === 0, root: acct.merkleRoot,
-                 nParcels: Number(acct.nParcels), status: acct.status, postedAt: acct.postedAt, version: acct.version, slot: acct.slot, problems: probs };
-    }
-  } catch (e) {
-    anchor = { kind: "published", ok: true, root: county.merkle_root, nParcels: county.n_parcels, note: `on-chain check unavailable: ${e.message || e}` };
-  }
+  const anchor = await getAnchor(county, onchain, 1);
   const root = anchor.root ?? county.merkle_root, nLeaves = anchor.nParcels ?? county.n_parcels;
   if (index.n_parcels !== nLeaves) throw new Error(`proof files cover ${index.n_parcels} parcels but the root covers ${nLeaves}`);
 
@@ -302,4 +313,141 @@ export async function suggest(index, input, load, max = 10) {
     for (const id of (await load(prefixFile(k))).json.ids) { if (normKey(id).startsWith(t)) out.push(id); if (out.length >= max) return out; }
   }
   return out;
+}
+
+// ---------- leaf format v2 (spec: docs/leaf-v2.md, reference code: sdk/src/leafv2.ts) ----------
+// Proof files, format 2, relative to <packet base>.proofs/:
+//   index.json   { format: 2, leaf_version: 2, fips, epoch, n_leaves, chunk_size, n_chunks, schema, ... } (untrusted)
+//   f.json       { fences: [keyV2(first row of chunk k), ...] }: leaves are sorted by key, so a lookup is a binary search
+//   r/<k>.json   { rows: [[parcel_id, occ, acres_micro, sqft_centi], ...] } for leaves k*chunk .. in leaf order
+//   c/<k>.bin    leaf hashes of chunk k; top.bin: chunk roots and every level above (promote-odd rule)
+//   x/<k>.json   optional county aliases (as in format 1)
+export const SCHEMA_V2_HEX = "b309043c77b9aa529244033ecbcaa030615fa949993c835bade21fd2abfbf00d";
+const LEAF_TAG_V2 = enc.encode("countyroot/leaf/v2"), ROOT_TAG_V2 = enc.encode("countyroot/root/v2");
+export function keyV2(id) {
+  const up = String(id).trim().replace(/[a-z]/g, (c) => c.toUpperCase());
+  const s = up.replace(/[ \t.\-]+/g, "").replace(/^0+(?=.)/, "");
+  return s || up;
+}
+/** Byte-order compare of ASCII strings (v2 IDs are printable ASCII, so code-unit order = byte order). */
+export const cmpKey = (a, b) => (a < b ? -1 : a > b ? 1 : 0);
+export function unitsToDecimal(v, dp) {
+  const s = BigInt(v).toString().padStart(dp + 1, "0");
+  return dp ? `${s.slice(0, -dp)}.${s.slice(-dp)}` : s;
+}
+export async function leafHashV2(fips, id, occ, acresMicro, sqftCenti) {
+  if (!/^[\x20-\x7e]{1,256}$/.test(id) || id !== id.trim()) throw new Error("parcel ID is not canonical printable ASCII");
+  const idb = enc.encode(id), b = new Uint8Array(1 + LEAF_TAG_V2.length + 4 + 2 + idb.length + 4 + 16), dv = new DataView(b.buffer);
+  let o = 0; b[o++] = 0; b.set(LEAF_TAG_V2, o); o += LEAF_TAG_V2.length;
+  dv.setUint32(o, fips, true); o += 4; dv.setUint16(o, idb.length, true); o += 2; b.set(idb, o); o += idb.length;
+  dv.setUint32(o, occ, true); o += 4; dv.setBigUint64(o, BigInt(acresMicro), true); o += 8; dv.setBigUint64(o, BigInt(sqftCenti), true);
+  return sha256(b);
+}
+export const nodeHashV2 = (l, r) => { const b = new Uint8Array(65); b[0] = 1; b.set(l, 1); b.set(r, 33); return sha256(b); };
+export async function rootHashV2(fips, epoch, n, top) {
+  const b = new Uint8Array(1 + ROOT_TAG_V2.length + 16 + 32), dv = new DataView(b.buffer);
+  b[0] = 2; b.set(ROOT_TAG_V2, 1); let o = 1 + ROOT_TAG_V2.length;
+  dv.setUint32(o, fips, true); dv.setUint32(o + 4, epoch, true); dv.setBigUint64(o + 8, BigInt(n), true); b.set(top, o + 16);
+  return sha256(b);
+}
+async function levelsV2(leaves) {
+  const levels = [leaves];
+  while (levels[levels.length - 1].length > 1) {
+    const lv = levels[levels.length - 1], jobs = [];
+    for (let j = 0; j < lv.length; j += 2) jobs.push(j + 1 < lv.length ? nodeHashV2(lv[j], lv[j + 1]) : Promise.resolve(lv[j]));
+    levels.push(await Promise.all(jobs));
+  }
+  return levels;
+}
+/** Siblings for leaf `index` from its chunk (with our recomputed leaf in place) and top.bin; promote-odd rule. */
+export async function assembleProofV2({ leaf, index, nLeaves, chunkSize, chunkBytes, topBytes }) {
+  if (chunkSize < 2 || (chunkSize & (chunkSize - 1))) throw new Error("chunk size must be a power of two");
+  if (!Number.isInteger(index) || index < 0 || index >= nLeaves) throw new Error("leaf index out of range");
+  const nChunks = Math.ceil(nLeaves / chunkSize), k = Math.floor(index / chunkSize), inChunk = Math.min(chunkSize, nLeaves - k * chunkSize);
+  if (chunkBytes.length !== inChunk * 32) throw new Error(`chunk ${k} should hold ${inChunk} leaves`);
+  const leaves = []; for (let i = 0; i < inChunk; i++) leaves.push(chunkBytes.subarray(i * 32, i * 32 + 32));
+  let i = index - k * chunkSize; leaves[i] = leaf;
+  const siblings = [], levels = await levelsV2(leaves);
+  for (let d = 0; d < levels.length - 1; d++) { const lv = levels[d]; if (!(i === lv.length - 1 && lv.length % 2 === 1)) siblings.push(lv[i ^ 1]); i >>= 1; }
+  // A short last chunk's root is promoted unchanged up to the chunk-root level (it is the last, odd node there).
+  const top = splitTop(topBytes, nChunks); top[0] = top[0].slice(); top[0][k] = levels[levels.length - 1][0];
+  let j = k;
+  for (let d = 0; d < top.length - 1; d++) { const lv = top[d]; if (!(j === lv.length - 1 && lv.length % 2 === 1)) siblings.push(lv[j ^ 1]); j >>= 1; }
+  return { leaf: toHex(leaf), index, nLeaves, siblings: siblings.map(toHex) };
+}
+/** Fold a v2 proof from the recomputed leaf and bind fips/epoch/n into the root. */
+export async function verifyProofV2({ fips, epoch, nLeaves, index, leaf, siblings }, rootHex) {
+  const fail = (why) => ({ ok: false, why, computed: null });
+  if (!Number.isInteger(index) || index < 0 || index >= nLeaves) return fail("index out of range");
+  let node = fromHex(leaf), i = index, n = nLeaves, s = 0;
+  while (n > 1) {
+    if (!(i === n - 1 && n % 2 === 1)) {
+      const sib = fromHex(siblings[s++] ?? "");
+      if (sib.length !== 32) return fail("proof is too short");
+      node = i % 2 ? await nodeHashV2(sib, node) : await nodeHashV2(node, sib);
+    }
+    i >>= 1; n = Math.ceil(n / 2);
+  }
+  if (s !== siblings.length) return fail("proof is too long");
+  const computed = toHex(await rootHashV2(fips, epoch, nLeaves, node));
+  return { ok: computed === String(rootHex).toLowerCase(), why: "root mismatch", computed };
+}
+
+/** v2 check: binary search by normalized key; found rows are proven, a missing key gets a non-membership proof. */
+export async function verifyParcelV2({ county, parcelId, load, onchain, index }) {
+  if (index.leaf_version !== 2 || index.schema !== SCHEMA_V2_HEX) throw new Error("unsupported v2 proof files");
+  if (index.fips !== county.fips || index.epoch !== county.epoch) throw new Error("proof files are for a different county or epoch");
+  const typed = String(parcelId).trim();
+  if (!typed) throw new Error("enter a parcel ID");
+  const anchor = await getAnchor(county, onchain, 2);
+  const root = anchor.root ?? county.merkle_root, n = anchor.nParcels ?? county.n_parcels;
+  if (index.n_leaves !== n) throw new Error(`proof files cover ${index.n_leaves} leaves but the root covers ${n}`);
+  const C = index.chunk_size, nChunks = Math.ceil(n / C);
+  if (index.n_chunks !== nChunks) throw new Error("proof files have the wrong chunk count");
+  const fences = (await load("f.json")).json.fences;
+  if (!Array.isArray(fences) || fences.length !== nChunks) throw new Error("bad fence file");
+  const rowsCache = new Map(), chunkCache = new Map();
+  const rowsOf = (k) => { if (!rowsCache.has(k)) rowsCache.set(k, load(`r/${k}.json`).then((r) => r.json.rows)); return rowsCache.get(k); };
+  const chunkOf = (k) => { if (!chunkCache.has(k)) chunkCache.set(k, load(`c/${k}.bin`).then((r) => r.bytes)); return chunkCache.get(k); };
+  const top = (await load("top.bin")).bytes;
+  const rowAt = async (i) => { const r = (await rowsOf(Math.floor(i / C)))[i % C]; if (!r) throw new Error(`row ${i} missing from the proof files`); return r; };
+  const prove = async (i) => {
+    const [pid, occ, am, sc] = await rowAt(i);
+    const r = { index: i, parcel_id: pid, occ, acres: unitsToDecimal(am, 6), lot_sqft: unitsToDecimal(sc, 2), acres_micro: String(am), sqft_centi: String(sc) };
+    try {
+      const leaf = await leafHashV2(county.fips, pid, occ, am, sc);
+      const p = await assembleProofV2({ leaf, index: i, nLeaves: n, chunkSize: C, chunkBytes: await chunkOf(Math.floor(i / C)), topBytes: top });
+      const proof = { version: 2, fips: county.fips, epoch: county.epoch, nLeaves: n, index: i, row: { id: pid, occ, acres_micro: String(am), sqft_centi: String(sc) }, siblings: p.siblings };
+      const v = await verifyProofV2({ fips: county.fips, epoch: county.epoch, nLeaves: n, index: i, leaf: p.leaf, siblings: p.siblings }, root);
+      Object.assign(r, { leaf: p.leaf, proofOk: v.ok, computed: v.computed, ok: v.ok && anchor.ok, proof,
+        reason: v.ok ? (anchor.ok ? "" : "proof matches, but the on-chain root is not usable: " + (anchor.problems || []).join("; ")) : `the row's fingerprint path does not lead to the root (${v.why})` });
+    } catch (e) { r.ok = false; r.reason = e.message || String(e); }
+    return r;
+  };
+  // Binary search over leaves by key (fences narrow it to one or two chunks).
+  const q = keyV2(typed);
+  let lo = 0, hi = n;
+  {
+    let a = 0, b = nChunks; while (a < b) { const m = (a + b) >> 1; if (cmpKey(fences[m], q) < 0) a = m + 1; else b = m; }
+    lo = Math.max(0, a - 1) * C; hi = Math.min(n, a * C); // the first leaf with key >= q lies in [lo, hi]
+  }
+  while (lo < hi) { const m = (lo + hi) >> 1; if (cmpKey(keyV2((await rowAt(m))[0]), q) < 0) lo = m + 1; else hi = m; }
+  const matches = []; for (let i = lo; i < n && keyV2((await rowAt(i))[0]) === q; i++) matches.push(i);
+  if (matches.length) {
+    const rows = [];
+    for (const i of matches) rows.push(await prove(i));
+    const exact = rows.filter((r) => r.parcel_id.toUpperCase() === typed.toUpperCase()).length;
+    const ids = [...new Set(rows.map((r) => r.parcel_id))];
+    for (const r of rows) r.via = r.parcel_id.toUpperCase() === typed.toUpperCase() ? null : "normalized";
+    const mode = exact === rows.length ? "exact" : "normalized";
+    return { found: true, rows, anchor, leafVersion: 2, resolution: { typed, mode, matches: mode === "exact" ? [] : ids.map((id) => ({ id, via: "normalized" })) } };
+  }
+  // Not present: prove the gap between the two adjacent leaves around the key.
+  const left = lo > 0 ? await prove(lo - 1) : null, right = lo < n ? await prove(lo) : null;
+  const ordered = (!left || cmpKey(keyV2(left.parcel_id), q) < 0) && (!right || cmpKey(keyV2(right.parcel_id), q) > 0);
+  const ok = !!(left || right) && ordered && (!left || left.ok) && (!right || right.ok);
+  const suggestions = [];
+  for (let i = lo; i < Math.min(n, lo + 10); i++) { const id = (await rowAt(i))[0]; if (keyV2(id).startsWith(q)) suggestions.push(id); }
+  return { found: false, rows: [], anchor, leafVersion: 2, resolution: { typed, mode: "none", matches: [] }, suggestions,
+           absence: { ok, key: q, left, right, reason: ok ? "" : !ordered ? "the neighbouring rows are not in key order" : "a neighbouring row's proof failed" } };
 }

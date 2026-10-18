@@ -94,6 +94,15 @@ function render(c, pid, res) {
     out.dataset.state = "notfound";
     const box = el("div", { class: "result bad", "data-ok": "false" }, el("div", { class: "verdict", textContent: "Not found" }),
       el("p", { textContent: `No parcel with ID "${pid.trim()}" is in ${c.display} epoch ${c.epoch} (${c.n_parcels.toLocaleString()} parcels), even ignoring case, spaces, dashes, dots and leading zeros${res.resolution && aliasLabels(c) ? `, or as a ${aliasLabels(c)}` : ""}.` }));
+    const ab = res.absence;
+    if (ab) {
+      // v2 only: the fingerprint is sorted by normalized ID, so two adjacent verified leaves prove the gap.
+      const nb = (r) => (r ? `${r.parcel_id} (leaf ${(r.index + 1).toLocaleString()})` : null);
+      const around = [nb(ab.left), nb(ab.right)].filter(Boolean).join(" and ");
+      box.append(el("p", { class: "note", "data-absence": ab.ok ? "proven" : "unproven", textContent: ab.ok
+        ? `${res.anchor.kind === "published" ? "Absence matches the published fingerprint" : "Absence proven on-chain"}: the fingerprint is sorted by normalized parcel ID, and ${around} are adjacent in it and both verify, so no parcel ID normalizing to "${ab.key}" is in this epoch.`
+        : `Absence could not be proven: ${ab.reason}.` }));
+    }
     const sug = res.suggestions || [];
     if (sug.length) {
       const ul = el("ul", { class: "sugg", "data-suggestions": String(sug.length) });
@@ -119,19 +128,22 @@ function render(c, pid, res) {
     const add = (k, v) => dl.append(el("dt", { textContent: k }), el("dd", { textContent: v }));
     add("Parcel ID", r.parcel_id);
     if (r.via) add("Found via", r.via === "normalized" ? "normalized ID (not part of the fingerprint)" : `${r.via} (lookup alias, not part of the fingerprint)`); add("Acres", r.acres); add("Lot sq ft", r.lot_sqft);
-    add("CSV line", `${r.row.toLocaleString()} (header is line 1) · leaf ${(r.index + 1).toLocaleString()} of ${c.n_parcels.toLocaleString()}`);
-    if (r.leaf) add("Leaf", r.leaf);
+    if (res.leafVersion === 2) {
+      add("Leaf", `${(r.index + 1).toLocaleString()} of ${c.n_parcels.toLocaleString()} (fingerprint format v2: sorted by parcel ID, bound to FIPS ${c.fips} and epoch ${c.epoch})`);
+      if (r.occ) add("Repeat", `row ${r.occ + 1} with this exact ID (the county lists it more than once)`);
+    } else add("CSV line", `${r.row.toLocaleString()} (header is line 1) · leaf ${(r.index + 1).toLocaleString()} of ${c.n_parcels.toLocaleString()}`);
+    if (r.leaf) add(res.leafVersion === 2 ? "Leaf hash" : "Leaf", r.leaf);
     if (r.computed) add("Computed root", r.computed);
     add(res.anchor.kind === "published" ? "Published root" : "On-chain root", res.anchor.root ?? c.merkle_root);
     add("County / epoch", `${c.display} (FIPS ${c.fips}) · epoch ${c.epoch} · ${c.month}`);
-    const box = el("div", { class: `result ${r.ok ? "ok" : "bad"}`, "data-ok": String(r.ok), "data-row": String(r.row) },
+    const box = el("div", { class: `result ${r.ok ? "ok" : "bad"}`, "data-ok": String(r.ok), "data-row": String(r.row ?? r.index + 1) },
       el("div", { class: "verdict", textContent: r.ok ? (res.anchor.kind === "published" ? "✓ Matches the published fingerprint" : "✓ Verified on-chain") : "✗ Not verified" }));
     if (!r.ok) box.append(el("p", { class: "note", textContent: r.reason }));
     box.append(dl);
     if (r.ok) {
-      const proof = { parcel_id: r.parcel_id, acres: r.acres, lot_sqft: r.lot_sqft, ...r.proof };
+      const proof = res.leafVersion === 2 ? r.proof : { parcel_id: r.parcel_id, acres: r.acres, lot_sqft: r.lot_sqft, ...r.proof };
       const blob = new Blob([JSON.stringify(proof, null, 2) + "\n"], { type: "application/json" });
-      box.append(el("p", { class: "note" }, el("a", { href: URL.createObjectURL(blob), download: `${c.label}.${c.epoch}.row${r.row}.proof.json`, textContent: "Download this proof" }),
+      box.append(el("p", { class: "note" }, el("a", { href: URL.createObjectURL(blob), download: `${c.label}.${c.epoch}.${res.leafVersion === 2 ? `leaf${r.index + 1}` : `row${r.row}`}.proof.json`, textContent: "Download this proof" }),
         " (works with the SDK: ", el("code", { textContent: "countyroot verify --root <root.json> --proof <file>" }), ")"));
     }
     out.append(box);

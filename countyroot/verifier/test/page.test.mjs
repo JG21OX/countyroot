@@ -35,13 +35,27 @@ function headersFor() {
   return out;
 }
 const MIME = { ".html": "text/html; charset=utf-8", ".js": "text/javascript", ".json": "application/json", ".bin": "application/octet-stream", ".png": "image/png", ".css": "text/css" };
-const counties = JSON.parse(fs.readFileSync(path.join(PUB, "verify/counties.json"), "utf8")).counties;
+const countiesDoc = JSON.parse(fs.readFileSync(path.join(PUB, "verify/counties.json"), "utf8"));
+const counties = countiesDoc.counties;
+// Leaf format v2 prototype: if a local v2 build of Martin.TX exists, the test site lists Martin.TX as its v2 epoch
+// (served from COUNTYROOT_V2_DIR) while every other county stays v1, so both formats run side by side.
+const V2DIR = process.env.COUNTYROOT_V2_DIR || "/workspace/countyroot/stage/v2";
+const SCHEMA_V1 = "1b0a0a99e80b71583619941720ccd746c9bd03551ca906bcb0a333839b29a427";
+const SCHEMA_V2 = "b309043c77b9aa529244033ecbcaa030615fa949993c835bade21fd2abfbf00d";
+const v2RootFile = fs.existsSync(path.join(V2DIR, "Martin.TX")) ? fs.readdirSync(path.join(V2DIR, "Martin.TX")).find((f) => f.endsWith(".v2.root.json")) : null;
+const HAVE_V2 = !!v2RootFile;
+if (HAVE_V2) {
+  const d = JSON.parse(fs.readFileSync(path.join(V2DIR, "Martin.TX", v2RootFile), "utf8"));
+  const { countyRootPda } = await import(path.resolve(path.dirname(new URL(import.meta.url).pathname), "../../sdk/dist/src/index.js"));
+  const i = counties.findIndex((c) => c.label === "Martin.TX");
+  counties[i] = { ...counties[i], epoch: d.epoch, n_parcels: d.n_parcels, merkle_root: d.merkle_root, pda: countyRootPda(d.fips, d.epoch).toBase58(), leaf_version: 2 };
+}
 
-const state = { rpc: "mock", tamper: null, requests: [], packets: "/packets" };
+const state = { rpc: "mock", tamper: null, requests: [], packets: "/packets", v2schema: SCHEMA_V2 };
 function accountB64(c, status = 1) {
   const d = Buffer.alloc(99); Buffer.from(discriminatorHex, "hex").copy(d, 0);
   d.writeUInt32LE(c.fips, 8); d.writeUInt32LE(c.epoch, 12); d.writeBigUInt64LE(BigInt(c.n_parcels), 16);
-  Buffer.from(c.merkle_root, "hex").copy(d, 24); d[88] = status; d.writeBigInt64LE(1792000000n, 89); d[97] = 255; d[98] = 1;
+  Buffer.from(c.merkle_root, "hex").copy(d, 24); Buffer.from(c.leaf_version === 2 ? state.v2schema : SCHEMA_V1, "hex").copy(d, 56); d[88] = status; d.writeBigInt64LE(1792000000n, 89); d[97] = 255; d[98] = 1;
   return d.toString("base64");
 }
 async function rpc(req, body) {
@@ -63,11 +77,16 @@ const server = http.createServer(async (req, res) => {
     let b = ""; req.on("data", (d) => (b += d)); await new Promise((r) => req.on("end", r));
     const [code, j] = await rpc(req, b); return send(code, JSON.stringify(j), "application/json");
   }
+  if (url.pathname === "/verify/counties.json") return send(200, JSON.stringify({ ...countiesDoc, counties }), "application/json");
   if (url.pathname === "/verify/config.json") return send(200, JSON.stringify({ rpc: "/rpc", packets: state.packets, cluster: "devnet" }), "application/json");
   let file;
-  if (url.pathname.startsWith("/packets/")) file = path.join(PROOFS, decodeURIComponent(url.pathname.slice(9)));
+  if (url.pathname.startsWith("/packets/")) {
+    const rel = decodeURIComponent(url.pathname.slice(9));
+    file = path.join(PROOFS, rel);
+    if (HAVE_V2 && !fs.existsSync(file) && fs.existsSync(path.join(V2DIR, rel))) file = path.join(V2DIR, rel);
+  }
   else { file = path.join(PUB, decodeURIComponent(url.pathname)); if (url.pathname.endsWith("/")) file = path.join(file, "index.html"); }
-  if (!file.startsWith(PUB) && !file.startsWith(PROOFS)) return send(403, "no", "text/plain");
+  if (!file.startsWith(PUB) && !file.startsWith(PROOFS) && !file.startsWith(V2DIR)) return send(403, "no", "text/plain");
   if (!fs.existsSync(file) || !fs.statSync(file).isFile()) return send(404, "not found", "text/plain");
   let body = fs.readFileSync(file);
   if (state.tamper && url.pathname.startsWith("/packets/")) body = state.tamper(url.pathname, body);
@@ -115,13 +134,14 @@ async function verifyIn(label, parcel, { timeout = 60000 } = {}) {
     matched: (document.querySelector('[data-resolved]')||{dataset:{}}).dataset.matched || null,
     parcels: [...document.querySelectorAll('.result dd:first-of-type')].map(e => e.textContent),
     suggestions: [...document.querySelectorAll('[data-sugg]')].map(e => ({ id: e.dataset.sugg, href: e.getAttribute('href') })),
+    absence: (document.querySelector('[data-absence]')||{dataset:{}}).dataset.absence || null,
     hint: (document.getElementById('hint')||{}).textContent || '', text: document.getElementById('out').innerText.slice(0, 600) })`);
   const r = { ...JSON.parse(info), ms: Date.now() - t0, logs: p.logs.slice() };
   await p.close();
   return r;
 }
 const noCsp = (r) => assert.ok(!r.logs.some((l) => /Content Security Policy|Refused to/i.test(l)), "CSP violations: " + r.logs.join(" | "));
-const reset = () => { state.rpc = "mock"; state.tamper = null; state.packets = "/packets"; };
+const reset = () => { state.rpc = "mock"; state.tamper = null; state.packets = "/packets"; state.v2schema = SCHEMA_V2; };
 
 test.after(async () => {
   const exited = new Promise((r) => chrome.once("exit", r)); chrome.kill(); await Promise.race([exited, new Promise((r) => setTimeout(r, 5000))]);
@@ -232,6 +252,33 @@ test("tampered row still fails when found through an alias", async () => {
   };
   const r = await verifyIn("Travis.TX", "244256");
   assert.equal(r.state, "failed", r.text); assert.equal(r.resolved, "alias");
+});
+
+// ---------- leaf format v2 alongside v1 (local v2 build of Martin.TX; all other counties v1) ----------
+const v2skip = !HAVE_V2 && "no local v2 build (node scripts/build_v2.mjs --csv Martin.TX.1.2026-10.csv --out stage/v2)";
+const v2rows = HAVE_V2 ? (() => { const d = path.join(V2DIR, "Martin.TX", fs.readdirSync(path.join(V2DIR, "Martin.TX")).find((f) => f.endsWith(".proofs"))); return { dir: d, rows: JSON.parse(fs.readFileSync(path.join(d, "r/3.json"))).rows }; })() : null;
+test("v2: a Martin.TX parcel verifies against a v2 root (schema v2), next to v1 counties", { skip: v2skip }, async () => {
+  reset(); const id = v2rows.rows[17][0];
+  const r = await verifyIn("Martin.TX", id);
+  assert.equal(r.state, "verified", r.text); assert.equal(r.anchor, "onchain"); assert.equal(r.rows.length, 1);
+  assert.match(r.text, /fingerprint format v2/); noCsp(r);
+  const r1 = await verifyIn("Travis.TX", "0000000ROW"); assert.equal(r1.state, "verified", r1.text); // v1 still fine
+});
+test("v2: leading zeros / dashes resolve through the sorted key", { skip: v2skip }, async () => {
+  reset(); const id = v2rows.rows[5][0];
+  const r = await verifyIn("Martin.TX", `00${id}`);
+  assert.equal(r.state, "verified", r.text); assert.equal(r.resolved, "normalized"); assert.equal(r.matched, id); noCsp(r);
+});
+test("v2: an unknown ID is not found AND proven absent (adjacent leaves)", { skip: v2skip }, async () => {
+  reset(); const r = await verifyIn("Martin.TX", `${v2rows.rows[5][0]}ZZ`);
+  assert.equal(r.state, "notfound", r.text); assert.equal(r.absence, "proven"); assert.match(r.text, /Absence proven on-chain/); noCsp(r);
+});
+test("v2: tampered row (acres) fails; a v1-schema root for v2 files fails", { skip: v2skip }, async () => {
+  reset(); const id = v2rows.rows[17][0];
+  state.tamper = (p, body) => { if (!/Martin\.TX\.\d+\.2026-10\.proofs\/r\/3\.json$/.test(p)) return body; const j = JSON.parse(body); j.rows[17][2] += 1; return Buffer.from(JSON.stringify(j)); };
+  let r = await verifyIn("Martin.TX", id); assert.equal(r.state, "failed", r.text);
+  reset(); state.v2schema = SCHEMA_V1;
+  r = await verifyIn("Martin.TX", id); assert.equal(r.state, "failed", r.text); assert.match(r.text, /fingerprint format/);
 });
 
 test("page fetched only same-origin URLs (CSP connect-src 'self' held)", () => {

@@ -8,6 +8,7 @@ import { buildLevels, makeProof, packetLeaves, parsePacketCsv, verifyProof, Proo
 import { fetchCountyRoot } from "./rpc.js";
 import { countyRootPda } from "./pda.js";
 import { STATUS_ACTIVE } from "./constants.js";
+import { verifyProofV2, SCHEMA_V1, SCHEMA_V2, ProofV2 } from "./leafv2.js";
 
 function args(argv: string[]) {
   const a: Record<string, string> = {};
@@ -46,6 +47,7 @@ export async function main(argv: string[], log = console.log): Promise<number> {
   if (!proof) throw new Error("verify needs --proof, or --csv and --parcel");
   const fips = a.fips ? Number(a.fips) : rootDoc.fips, epoch = a.epoch ? Number(a.epoch) : rootDoc.epoch;
   if (fips !== rootDoc.fips || epoch !== rootDoc.epoch) { log(`FAIL: root.json is fips ${rootDoc.fips} epoch ${rootDoc.epoch}`); return 1; }
+  if (proof.version === 2) return verifyV2(proof as ProofV2, rootDoc, fips, epoch, a, log);
   let ok = true;
   if (a.parcel && proof.parcel_id !== undefined && proof.parcel_id !== a.parcel) { log("FAIL: proof is for a different parcel"); return 1; }
   if (proof.parcel_id !== undefined) {
@@ -65,6 +67,31 @@ export async function main(argv: string[], log = console.log): Promise<number> {
     log(`${match ? "OK  " : "FAIL"} on-chain root ${onchain} (status ${acct.status === STATUS_ACTIVE ? "active" : "RETRACTED"}, version ${acct.version}, n_parcels ${acct.nParcels})`);
     if (acct.status !== STATUS_ACTIVE) { log("FAIL: root is retracted"); ok = false; }
     if (acct.nParcels !== BigInt(proof.leafCount)) { log("FAIL: on-chain n_parcels differs from proof leafCount"); ok = false; }
+    ok &&= match;
+  }
+  log(ok ? "VERIFIED" : "NOT VERIFIED");
+  return ok ? 0 : 1;
+}
+
+/** Leaf format v2 proof: the root binds fips/epoch/n, and the on-chain schema must be SCHEMA_V2. */
+async function verifyV2(proof: ProofV2, rootDoc: any, fips: number, epoch: number, a: Record<string, string>, log: (s: string) => void): Promise<number> {
+  let ok = true;
+  if (proof.fips !== fips || proof.epoch !== epoch) { log(`FAIL: proof is for fips ${proof.fips} epoch ${proof.epoch}`); ok = false; }
+  if (Number(rootDoc.n_parcels) !== proof.nLeaves) { log(`FAIL: proof nLeaves ${proof.nLeaves} != n_parcels ${rootDoc.n_parcels}`); ok = false; }
+  if (a.parcel && proof.row.id !== a.parcel) { log("FAIL: proof is for a different parcel"); ok = false; }
+  const offline = verifyProofV2(proof, rootDoc.merkle_root);
+  log(`${offline ? "OK  " : "FAIL"} v2 proof -> root.json merkle_root ${rootDoc.merkle_root} (fips ${fips}, epoch ${epoch}, leaf ${proof.index + 1}/${proof.nLeaves})`);
+  ok &&= offline;
+  if (a.rpc) {
+    const conn = new Connection(rpcUrl(a.rpc), (a.commitment as any) ?? "finalized");
+    const acct = await fetchCountyRoot(conn, fips, epoch, (a.commitment as any) ?? "finalized");
+    if (!acct) { log(`FAIL: no on-chain account ${countyRootPda(fips, epoch).toBase58()}`); return 1; }
+    const match = verifyProofV2(proof, acct.merkleRoot);
+    const fmt = acct.schema.equals(SCHEMA_V2) ? "v2" : acct.schema.equals(SCHEMA_V1) ? "v1" : "unknown";
+    log(`${match ? "OK  " : "FAIL"} on-chain root ${acct.merkleRoot.toString("hex")} (format ${fmt}, status ${acct.status === STATUS_ACTIVE ? "active" : "RETRACTED"})`);
+    if (fmt !== "v2") { log("FAIL: the on-chain root is not a v2 fingerprint"); ok = false; }
+    if (acct.status !== STATUS_ACTIVE) { log("FAIL: root is retracted"); ok = false; }
+    if (acct.nParcels !== BigInt(proof.nLeaves)) { log("FAIL: on-chain n_parcels differs from proof nLeaves"); ok = false; }
     ok &&= match;
   }
   log(ok ? "VERIFIED" : "NOT VERIFIED");
