@@ -143,3 +143,64 @@ test("scan_proofs flags personal-info-shaped and forbidden IDs, and passes clean
   r = await scanProofs({ dir: path.join(tmp, "scan"), forbid: [forbid], except: [except] });
   assert.equal(r.forbidden_ids, 1); assert.equal(r.denied.length, 1);
 });
+
+// ---------- lookup aids: normalized IDs, aliases, suggestions ----------
+async function lookupSidecar(rows, aliases = [], opts = {}) {
+  const levels = levelsOf(rows), root = levels[levels.length - 1][0].toString("hex");
+  const sc = await buildSidecar({ rows, levels, meta: { label: "Test.ZZ", fips: 99001, epoch: 1, month: "2026-10", merkle_root: root }, aliases, chunk: 16, ...opts });
+  const county = { label: "Test.ZZ", fips: 99001, epoch: 1, n_parcels: rows.length, merkle_root: root, pda: "x" };
+  return { ...sc, county, run: (id) => V.verifyParcel({ county, parcelId: id, load: loader(sc.files), onchain: active(county) }) };
+}
+const travisLike = () => { const r = mkRows(400, (i) => String(240050000 + i * 3)); r.push({ parcel_id: "126010101", acres: "0.204008", lot_sqft: "8887.00" }, { parcel_id: "126010102", acres: "1.000000", lot_sqft: "1.00" }, { parcel_id: "0000000ROW", acres: "0.334422", lot_sqft: "14567.00" }); return r; };
+
+test("normKey strips case, spaces, dashes, dots and leading zeros", () => {
+  assert.equal(V.normKey(" 0240050817 "), "240050817"); assert.equal(V.normKey("12601-01-01"), "126010101");
+  assert.equal(V.normKey("ab.c d-e"), "ABCDE"); assert.equal(V.normKey("000"), "0"); assert.equal(V.normKey("0000000ROW"), "ROW");
+});
+
+test("leading zero and dashes resolve to the exact parcel ID, and say how", async () => {
+  const s = await lookupSidecar(travisLike());
+  let r = await s.run("0240050003");
+  assert.equal(r.found, true); assert.equal(r.resolution.mode, "normalized"); assert.equal(r.rows[0].parcel_id, "240050003"); assert.ok(r.rows[0].ok);
+  r = await s.run("12601-01-01"); assert.equal(r.rows[0].parcel_id, "126010101"); assert.ok(r.rows[0].ok);
+  r = await s.run("row"); assert.equal(r.rows[0].parcel_id, "0000000ROW"); assert.equal(r.resolution.mode, "normalized");
+  r = await s.run("240050003"); assert.equal(r.resolution.mode, "exact");
+});
+
+test("aliases resolve to parcel IDs; ambiguous matches return all candidates; unknown targets are dropped", async () => {
+  const { matchAliases } = await import("./build_aliases.mjs");
+  const rows = travisLike(); rows.push({ parcel_id: "7-7", acres: "1", lot_sqft: "1" }, { parcel_id: "77", acres: "2", lot_sqft: "2" });
+  const m = matchAliases(rows.map((r) => r.parcel_id), [["244256", "0240050003"], ["999", "0126010101"], ["999", "126010102"], ["5", "NOPE"], ["6", "077"]]);
+  assert.deepEqual(m.map["244256"], ["240050003"]); assert.deepEqual(m.map["999"], ["126010101", "126010102"]);
+  assert.equal(m.stats.unmatched, 1); assert.equal(m.stats.ambiguous, 1); // "077" normalizes to both 7-7 and 77
+  const s = await lookupSidecar(rows, [{ type: { label: "TCAD Property ID", source: "test" }, map: { ...m.map, 31337: ["NOT-IN-PACKET"] } }]);
+  let r = await s.run("244256");
+  assert.equal(r.resolution.mode, "alias"); assert.equal(r.rows.length, 1); assert.equal(r.rows[0].parcel_id, "240050003"); assert.equal(r.rows[0].via, "TCAD Property ID"); assert.ok(r.rows[0].ok);
+  r = await s.run("999"); assert.deepEqual(r.rows.map((x) => x.parcel_id).sort(), ["126010101", "126010102"]); assert.ok(r.rows.every((x) => x.ok));
+  r = await s.run("077"); assert.deepEqual(r.rows.map((x) => x.parcel_id).sort(), ["7-7", "77"]); // normalized ambiguity: both
+  assert.equal((await s.run("31337")).found, false);
+  // an alias can't make a tampered row pass
+  const k = await V.shardOf("240050003", s.index.n_shards), f = new Map(s.files);
+  const j = JSON.parse(f.get(`s/${k}.json`)); j.rows.find((x) => x[0] === "240050003")[1] = "5.000000"; f.set(`s/${k}.json`, Buffer.from(JSON.stringify(j)));
+  r = await V.verifyParcel({ county: s.county, parcelId: "244256", load: loader(f), onchain: active(s.county) });
+  assert.equal(r.rows[0].ok, false);
+});
+
+test("not found returns up to 10 prefix suggestions, including from small prefix buckets", async () => {
+  const s = await lookupSidecar(travisLike(), [], { maxBytes: 600 });
+  assert.ok(s.index.prefix_len > 0);
+  let r = await s.run("12601"); assert.equal(r.found, false); assert.deepEqual(r.suggestions, ["126010101", "126010102"]);
+  r = await s.run("2400"); assert.equal(r.suggestions.length, 10);
+  r = await s.run("1"); assert.ok(r.suggestions.includes("126010101"));
+  r = await s.run("ZZZ"); assert.deepEqual(r.suggestions, []);
+  for (const [n, b] of s.files) if (n.startsWith("p/") || n.startsWith("x/")) assert.ok(b.length <= 600, `${n} ${b.length}`);
+});
+
+test("scan_proofs also scans alias terms and suggestion IDs", async () => {
+  const { scanProofs } = await import("./scan_proofs.mjs");
+  const dir = path.join(tmp, "scan2/Test.ZZ/Test.ZZ.1.2026-10.proofs"); fs.mkdirSync(path.join(dir, "x"), { recursive: true }); fs.mkdirSync(path.join(dir, "p"), { recursive: true });
+  fs.writeFileSync(path.join(dir, "x/0.json"), JSON.stringify({ entries: { "DOE; JANE": [["P-1", 1]] } }));
+  fs.writeFileSync(path.join(dir, "p/_.json"), JSON.stringify({ ids: ["P-1", "SMITH FAMILY TRUST"] }));
+  const r = await scanProofs({ dir: path.join(tmp, "scan2") });
+  assert.equal(r.pii.length, 2);
+});

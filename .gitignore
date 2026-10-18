@@ -27,3 +27,5 @@ roots/**/*_raw.json
 upload-list.txt
 upload-data.txt
 upload-index.txt
+*.aliases.json
+manifest.txt

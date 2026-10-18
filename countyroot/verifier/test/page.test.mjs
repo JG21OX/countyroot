@@ -110,7 +110,12 @@ async function verifyIn(label, parcel, { timeout = 60000 } = {}) {
   const info = await p.evalJs(`JSON.stringify({ state: document.getElementById('out').dataset.state,
     anchor: (document.querySelector('[data-anchor]')||{}).dataset?.anchor || null,
     rows: [...document.querySelectorAll('.result')].map(e => ({ ok: e.dataset.ok, row: e.dataset.row, verdict: e.querySelector('.verdict').textContent })),
-    status: document.getElementById('status').textContent, text: document.getElementById('out').innerText.slice(0, 600) })`);
+    status: document.getElementById('status').textContent,
+    resolved: (document.querySelector('[data-resolved]')||{dataset:{}}).dataset.resolved || null,
+    matched: (document.querySelector('[data-resolved]')||{dataset:{}}).dataset.matched || null,
+    parcels: [...document.querySelectorAll('.result dd:first-of-type')].map(e => e.textContent),
+    suggestions: [...document.querySelectorAll('[data-sugg]')].map(e => ({ id: e.dataset.sugg, href: e.getAttribute('href') })),
+    hint: (document.getElementById('hint')||{}).textContent || '', text: document.getElementById('out').innerText.slice(0, 600) })`);
   const r = { ...JSON.parse(info), ms: Date.now() - t0, logs: p.logs.slice() };
   await p.close();
   return r;
@@ -118,7 +123,10 @@ async function verifyIn(label, parcel, { timeout = 60000 } = {}) {
 const noCsp = (r) => assert.ok(!r.logs.some((l) => /Content Security Policy|Refused to/i.test(l)), "CSP violations: " + r.logs.join(" | "));
 const reset = () => { state.rpc = "mock"; state.tamper = null; state.packets = "/packets"; };
 
-test.after(() => { chrome.kill(); server.close(); fs.rmSync(profile, { recursive: true, force: true }); });
+test.after(async () => {
+  const exited = new Promise((r) => chrome.once("exit", r)); chrome.kill(); await Promise.race([exited, new Promise((r) => setTimeout(r, 5000))]);
+  server.close(); try { fs.rmSync(profile, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }); } catch {}
+});
 
 test("Travis.TX: a parcel verifies against the root (mock RPC)", async () => {
   reset(); const r = await verifyIn("Travis.TX", "0000000ROW");
@@ -185,6 +193,45 @@ test("harness really enforces the CSP: a proof host outside connect-src is block
   reset(); state.packets = `http://localhost:${server.address().port}/packets`; // other origin, not in connect-src
   const r = await verifyIn("Osage.OK", "UNNUMBERED-41938");
   assert.equal(r.state, "error", r.text); assert.ok(r.logs.some((l) => /Content Security Policy|Refused to connect/i.test(l)), r.logs.join(" | "));
+});
+
+test("Travis 0240050817 (leading zero) resolves to 240050817 and verifies", async () => {
+  reset(); if (LIVE) state.rpc = "live";
+  const r = await verifyIn("Travis.TX", "0240050817");
+  assert.equal(r.state, "verified", r.text); assert.equal(r.resolved, "normalized"); assert.equal(r.matched, "240050817");
+  assert.match(r.text, /You typed 0240050817; matched 240050817/); assert.equal(r.rows.length, 1); noCsp(r);
+});
+
+test("Travis Property ID 244256 resolves via the TCAD alias to 240050817 and verifies, with the not-in-fingerprint note", async () => {
+  reset(); if (LIVE) state.rpc = "live";
+  const r = await verifyIn("Travis.TX", "244256");
+  assert.equal(r.state, "verified", r.text); assert.equal(r.resolved, "alias"); assert.equal(r.matched, "240050817");
+  assert.match(r.text, /TCAD Property ID 244256 → parcel ID 240050817/); assert.match(r.text, /NOT part of the on-chain fingerprint/);
+  assert.match(r.hint, /TCAD Property ID/); noCsp(r);
+});
+
+test("Travis 12601-01-01 (dashes) verifies 126010101", async () => {
+  reset(); const r = await verifyIn("Travis.TX", "12601-01-01");
+  assert.equal(r.state, "verified", r.text); assert.equal(r.matched, "126010101"); noCsp(r);
+});
+
+test("Travis '12601' is not found but suggests IDs including 126010101, and a suggestion link verifies", async () => {
+  reset(); const r = await verifyIn("Travis.TX", "12601");
+  assert.equal(r.state, "notfound", r.text); assert.ok(r.suggestions.length > 0 && r.suggestions.length <= 10);
+  const s = r.suggestions.find((x) => x.id === "126010101"); assert.ok(s, JSON.stringify(r.suggestions));
+  const q = new URLSearchParams(s.href.slice(1)); const r2 = await verifyIn(q.get("c"), q.get("p"));
+  assert.equal(r2.state, "verified", r2.text); assert.equal(r2.resolved, null); noCsp(r);
+});
+
+test("tampered row still fails when found through an alias", async () => {
+  reset();
+  state.tamper = (p, body) => {
+    if (!/\/Travis\.TX\.2\.2026-10\.proofs\/s\/\d+\.json$/.test(p)) return body;
+    const j = JSON.parse(body); const row = j.rows.find((x) => x[0] === "240050817"); if (row) row[1] = "1.000000";
+    return Buffer.from(JSON.stringify(j));
+  };
+  const r = await verifyIn("Travis.TX", "244256");
+  assert.equal(r.state, "failed", r.text); assert.equal(r.resolved, "alias");
 });
 
 test("page fetched only same-origin URLs (CSP connect-src 'self' held)", () => {

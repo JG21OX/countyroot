@@ -7,6 +7,12 @@
 //   s/<k>.json        rows whose lookup key hashes to shard k: [[parcel_id, acres, lot_sqft, leaf_index], ...]
 //   c/<k>.bin         leaf hashes k*chunk .. (k+1)*chunk-1, 32 bytes each
 //   top.bin           every tree level from the chunk-root level up to the root, 32 bytes per node
+//   x/<k>.json        lookup aliases, keyed by normKey(term): {entries: {term: [[parcel_id, type], ...]}}
+//                     type 0 = the parcel ID written differently (dashes/spaces/dots/leading zeros/case);
+//                     type >= 1 = index.alias_types[type - 1], e.g. a county's own Property ID. Optional.
+//   p/index.json      prefix buckets for "did you mean" suggestions: {len, keys: [...]}; p/<hex(key)>.json = sorted IDs. Optional.
+// Aliases and suggestions are only a way to FIND the parcel ID. They are not in the leaf or the on-chain root;
+// the proof is always on the exact parcel ID from the packet.
 // Nothing in these files is trusted. A proof only passes if the recomputed root equals the on-chain root
 // (or, if the RPC is unreachable, the root published in the site's counties.json).
 
@@ -52,6 +58,14 @@ export const hashPair = (l, r) => sha256(concat(l, r));
 
 /** Lookup key for a parcel ID: trimmed and upper-cased, so the search is case-insensitive. */
 export const lookupKey = (id) => String(id).trim().toUpperCase();
+/** Normalized key: lookupKey without spaces, dashes and dots, and without leading zeros ("0240-050.817" -> "240050817"). */
+export function normKey(id) {
+  const s = lookupKey(id).replace(/[\s.\-]+/g, "").replace(/^0+(?=.)/, "");
+  return s || lookupKey(id);
+}
+const hexOf = (str) => toHex(enc.encode(str));
+/** File name for a prefix bucket key. */
+export const prefixFile = (key) => `p/${key === "" ? "_" : hexOf(key)}.json`;
 /** Shard number for a parcel ID: first 4 bytes of sha256(utf8(lookupKey)) as a big-endian u32, mod nShards. */
 export async function shardOf(id, nShards) {
   const h = await sha256(enc.encode(lookupKey(id)));
@@ -227,17 +241,38 @@ export async function verifyParcel({ county, parcelId, load, onchain }) {
   const root = anchor.root ?? county.merkle_root, nLeaves = anchor.nParcels ?? county.n_parcels;
   if (index.n_parcels !== nLeaves) throw new Error(`proof files cover ${index.n_parcels} parcels but the root covers ${nLeaves}`);
 
-  const shard = await shardOf(key, index.n_shards);
-  const rowsAll = (await load(`s/${shard}.json`)).json.rows;
-  const hits = rowsAll.filter((r) => lookupKey(r[0]) === key);
-  if (!hits.length) return { found: false, rows: [], anchor };
-
+  const rowsFor = async (id) => {
+    const k = lookupKey(id), rows = (await load(`s/${await shardOf(k, index.n_shards)}.json`)).json.rows;
+    return rows.filter((r) => lookupKey(r[0]) === k);
+  };
+  // 1. exact parcel ID (case-insensitive)
+  let hits = (await rowsFor(key)).map((r) => ({ r, via: null }));
+  let resolution = { typed: parcelId.trim(), mode: hits.length ? "exact" : "none", matches: [] };
+  if (!hits.length) {
+    // 2. normalized form, then 3. the alias index (normalized IDs + county aliases such as a Property ID)
+    const nk = normKey(parcelId), cands = new Map();
+    if (nk !== key) for (const r of await rowsFor(nk)) cands.set(r[0], { id: r[0], via: "normalized" });
+    if (index.n_xshards) {
+      const x = (await load(`x/${await shardOf(nk, index.n_xshards)}.json`)).json.entries[nk] ?? [];
+      for (const [id, t] of x) {
+        const via = t === 0 ? "normalized" : (index.alias_types?.[t - 1]?.label ?? `alias ${t}`);
+        if (!cands.has(id)) cands.set(id, { id, via, aliasType: t ? index.alias_types?.[t - 1] : null });
+      }
+    }
+    for (const c of cands.values()) {
+      const rs = await rowsFor(c.id);
+      if (rs.length) resolution.matches.push(c);
+      for (const r of rs) hits.push({ r, via: c });
+    }
+    resolution.mode = hits.length ? (resolution.matches.some((m) => m.via !== "normalized") ? "alias" : "normalized") : "none";
+  }
+  if (!hits.length) return { found: false, rows: [], anchor, resolution, suggestions: await suggest(index, parcelId, load).catch(() => []) };
   const chunkCache = new Map();
   const getChunk = (k) => { if (!chunkCache.has(k)) chunkCache.set(k, load(`c/${k}.bin`).then((r) => r.bytes)); return chunkCache.get(k); };
   const top = (await load("top.bin")).bytes;
   const out = [];
-  for (const [pid, acres, sqft, idx] of hits) {
-    const r = { row: idx + 2, parcel_id: pid, acres, lot_sqft: sqft, index: idx };
+  for (const { r: [pid, acres, sqft, idx], via } of hits) {
+    const r = { row: idx + 2, parcel_id: pid, acres, lot_sqft: sqft, index: idx, via: via ? via.via : null };
     try {
       if (!Number.isInteger(idx) || idx < 0 || idx >= nLeaves) throw new Error("row index out of range");
       const leaf = await leafHash(pid, acres, sqft);
@@ -249,5 +284,22 @@ export async function verifyParcel({ county, parcelId, load, onchain }) {
     } catch (e) { r.ok = false; r.reason = e.message || String(e); }
     out.push(r);
   }
-  return { found: true, rows: out, anchor };
+  return { found: true, rows: out, anchor, resolution };
+}
+
+/** Up to `max` parcel IDs whose normalized form starts with the normalized input (from the p/ prefix buckets). */
+export async function suggest(index, input, load, max = 10) {
+  if (!index.has_prefix) return [];
+  const t = normKey(input);
+  if (!t) return [];
+  const p = (await load("p/index.json")).json;
+  // Buckets that can hold IDs starting with t: keys that extend t, or keys that t extends (longest first).
+  const longer = p.keys.filter((k) => k.startsWith(t)).sort();
+  const shorter = p.keys.filter((k) => k.length < t.length && t.startsWith(k)).sort((a, b) => b.length - a.length);
+  const keys = longer.length ? longer : shorter;
+  const out = [];
+  for (const k of keys.slice(0, 4)) {
+    for (const id of (await load(prefixFile(k))).json.ids) { if (normKey(id).startsWith(t)) out.push(id); if (out.length >= max) return out; }
+  }
+  return out;
 }

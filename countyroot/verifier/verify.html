@@ -36,6 +36,7 @@
     code { font-size:12px; color:#c4c0d4; }
     ol.how { margin:8px 0 0 20px; font-size:14px; color:var(--mute); }
     .trust { margin-top:10px; }
+    ul.sugg { list-style:none; display:flex; flex-wrap:wrap; gap:6px 14px; margin:8px 0 0; font-size:14px; }
     footer { color:var(--mute); font-size:13px; margin-top:36px; border-top:1px solid var(--line); padding-top:14px; }
   </style>
 </head>
@@ -52,8 +53,9 @@
     <form id="f" autocomplete="off">
       <label for="county">County</label>
       <select id="county" required><option value="">Loading counties…</option></select>
-      <label for="parcel">Parcel ID (as the county writes it; case and surrounding spaces are ignored)</label>
-      <input id="parcel" required placeholder="e.g. 0000000ROW" spellcheck="false" />
+      <label for="parcel">Parcel ID (case, spaces, dashes, dots and leading zeros are ignored)</label>
+      <input id="parcel" required placeholder="e.g. 0240050817" spellcheck="false" />
+      <p id="hint" class="note"></p>
       <button id="go" type="submit" disabled>Verify</button>
     </form>
     <div id="status" role="status" aria-live="polite"></div>
@@ -62,6 +64,7 @@
     <h2>How this works</h2>
     <ol class="how">
       <li>Your browser downloads a few small proof files for this county (about 100 KB or less each), not the whole parcel list.</li>
+      <li>If the exact ID isn't in the county file, it tries the same ID without case, spaces, dashes, dots or leading zeros, then any lookup aliases the county has (for example Travis's TCAD Property ID). It always tells you which parcel ID it matched. Aliases only help find the parcel ID; they are not part of the fingerprint.</li>
       <li>It recomputes the parcel's fingerprint (leaf) from the row: <code>sha256(parcel_id|acres|lot_sqft)</code>.</li>
       <li>It hashes that leaf up the Merkle tree to a root, using the neighbouring fingerprints from the proof files.</li>
       <li>It reads the county's root account from Solana Devnet (finalized) and checks it is CountyRoot's, active, for this county and epoch, and equal to the computed root.</li>

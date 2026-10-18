@@ -37,11 +37,19 @@ async function init() {
 function proofLoader(c) {
   const base = `${cfg.packets}/${c.label}/${c.label}.${c.epoch}.${c.month}.proofs/`;
   return async (name) => {
-    const r = await fetch(base + name);
+    const r = await fetch(base + name, name.endsWith("index.json") ? { cache: "no-cache" } : {}); // revalidate small index files
     if (r.status === 404 || r.status === 403) throw Object.assign(new Error(`missing ${name}`), { notFound: true });
     if (!r.ok) throw new Error(`${name}: HTTP ${r.status}`);
-    return name.endsWith(".json") ? { json: await r.json() } : { bytes: new Uint8Array(await r.arrayBuffer()) };
+    if (!name.endsWith(".json")) return { bytes: new Uint8Array(await r.arrayBuffer()) };
+    const json = await r.json();
+    if (name === "index.json") { lastIndex = { label: c.label, types: json.alias_types || [] }; showAliasHint(c); }
+    return { json };
   };
+}
+
+function showAliasHint(c) {
+  const h = $("hint"); if (!h) return;
+  h.textContent = lastIndex && lastIndex.types.length ? `${c.display} also accepts: ${lastIndex.types.map((t) => t.label).join(", ")} (a lookup alias; the proof is on the parcel ID).` : "";
 }
 
 async function run() {
@@ -76,14 +84,32 @@ function anchorBanner(c, a) {
   return el("div", { class: "banner amber", "data-anchor": "published" }, `Solana could not be reached (${a.note.replace(/^on-chain check unavailable: /, "")}). Compared with the fingerprint published on this site instead. Confirm the root yourself: `, link);
 }
 
+let lastIndex = null;
+const aliasLabels = (c) => (lastIndex && lastIndex.label === c.label && lastIndex.types.length ? lastIndex.types.map((t) => t.label).join(" or ") : "");
+
 function render(c, pid, res) {
   const out = $("out");
   out.append(anchorBanner(c, res.anchor));
   if (!res.found) {
     out.dataset.state = "notfound";
-    out.append(el("div", { class: "result bad", "data-ok": "false" }, el("div", { class: "verdict", textContent: "Not found" }),
-      el("p", { textContent: `No parcel with ID "${pid.trim()}" is in ${c.display} epoch ${c.epoch} (${c.n_parcels.toLocaleString()} parcels). Check the ID format the county uses.` })));
+    const box = el("div", { class: "result bad", "data-ok": "false" }, el("div", { class: "verdict", textContent: "Not found" }),
+      el("p", { textContent: `No parcel with ID "${pid.trim()}" is in ${c.display} epoch ${c.epoch} (${c.n_parcels.toLocaleString()} parcels), even ignoring case, spaces, dashes, dots and leading zeros${res.resolution && aliasLabels(c) ? `, or as a ${aliasLabels(c)}` : ""}.` }));
+    const sug = res.suggestions || [];
+    if (sug.length) {
+      const ul = el("ul", { class: "sugg", "data-suggestions": String(sug.length) });
+      for (const id of sug) ul.append(el("li", {}, el("a", { href: `?c=${encodeURIComponent(c.label)}&p=${encodeURIComponent(id)}`, textContent: id, "data-sugg": id })));
+      box.append(el("p", { class: "note", textContent: `Parcel IDs in this county that start with what you typed${sug.length >= 10 ? " (first 10)" : ""}:` }), ul);
+    }
+    out.append(box);
     return;
+  }
+  const rz = res.resolution;
+  if (rz && rz.mode !== "exact") {
+    const ids = [...new Set(rz.matches.map((m) => m.id))];
+    const how = rz.matches.map((m) => (m.via === "normalized" ? `${m.id} (same ID written without case, spaces, dashes, dots or leading zeros)` : `${m.id} (${m.via} ${rz.typed} → parcel ID ${m.id})`));
+    out.append(el("div", { class: "banner amber", "data-resolved": rz.mode, "data-matched": ids.join(" ") },
+      `You typed ${rz.typed}; matched ${how.join("; ")}.` + (ids.length > 1 ? " More than one parcel matches, so each is shown." : "") +
+      (rz.mode === "alias" ? " Aliases are a lookup convenience from the county's public records; they are NOT part of the on-chain fingerprint. The proof below is on the parcel ID." : "")));
   }
   const allOk = res.rows.every((r) => r.ok);
   out.dataset.state = allOk ? "verified" : res.rows.some((r) => r.ok) ? "partial" : "failed";
@@ -91,7 +117,8 @@ function render(c, pid, res) {
   for (const r of res.rows) {
     const dl = el("dl");
     const add = (k, v) => dl.append(el("dt", { textContent: k }), el("dd", { textContent: v }));
-    add("Parcel ID", r.parcel_id); add("Acres", r.acres); add("Lot sq ft", r.lot_sqft);
+    add("Parcel ID", r.parcel_id);
+    if (r.via) add("Found via", r.via === "normalized" ? "normalized ID (not part of the fingerprint)" : `${r.via} (lookup alias, not part of the fingerprint)`); add("Acres", r.acres); add("Lot sq ft", r.lot_sqft);
     add("CSV line", `${r.row.toLocaleString()} (header is line 1) · leaf ${(r.index + 1).toLocaleString()} of ${c.n_parcels.toLocaleString()}`);
     if (r.leaf) add("Leaf", r.leaf);
     if (r.computed) add("Computed root", r.computed);

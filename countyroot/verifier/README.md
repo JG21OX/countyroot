@@ -18,6 +18,9 @@ For each packet `<label>/<label>.<epoch>.<month>.csv` on R2, the proofs live nex
 | `c/<k>.bin` | 2,048 leaf hashes (32 bytes each) | 64 KB |
 | `top.bin` | tree levels from the chunk roots up to the root | ~n/32 bytes |
 
+| `x/<k>.json` | lookup aliases by `normKey(term)`: normalized IDs (type 0) and county aliases (type ≥ 1) | ≤ 100 KB |
+| `p/index.json`, `p/<hex>.json` | prefix-trie buckets of IDs for "not found" suggestions | ≤ 100 KB |
+
 A lookup is 4 fetches: index, one shard, one chunk, top (about 150–250 KB in total). Shard = first 4 bytes of
 `sha256(upper(trim(parcel_id)))` mod `n_shards`, so the search ignores case and surrounding spaces. Duplicate parcel
 IDs (e.g. Miami-Dade) are all returned, each with its own row and proof. The builder refuses a packet unless its CSV
@@ -29,6 +32,21 @@ node scripts/build_proofs.mjs --csv X.csv [--root X.root.json] --out <stage dir>
 node scripts/scan_proofs.mjs --dir <stage dir> [--forbid-ids-from old.csv --except-ids-from new.csv]
 node scripts/proof_upload_list.mjs --dir <stage dir>      # writes upload-list.txt and upload.sh (does not upload)
 ```
+
+## Finding the parcel ID (lookup aids, not part of the fingerprint)
+The page tries, in order: the exact ID (case-insensitive); the normalized ID (`normKey`: spaces, dashes, dots and
+leading zeros removed, so `0240050817` finds `240050817`); then the `x/` alias index, which holds normalized forms of IDs
+that contain those characters plus any county aliases. Every match is shown ("You typed X; matched Y"), and
+ambiguous matches return every candidate. If nothing matches, `p/` gives up to 10 parcel IDs starting with what was typed.
+
+County aliases come from an `aliases.json` built with `scripts/build_aliases.mjs` from `alias,target` pairs (no other
+fields). Travis.TX uses the TCAD Property ID from the official Travis County TNR "TCAD Parcels" layer
+(`scripts/aliases/travis_tcad.mjs`, which downloads only PROP_ID and geo_id). Pass it to the builder with
+`--aliases X.aliases.json`. Aliases and suggestions only help find the parcel ID. The proof is always on the packet's
+parcel ID, and the page says so.
+
+Re-uploads: `node scripts/proof_upload_list.mjs --dir <new stage> --previous <old stage or manifest.txt>` lists only
+new or changed files. Index files get a 5-minute cache, other files 1 day.
 
 ## Trust model
 - **Proof files are untrusted.** The page recomputes the leaf from the row and hashes up to a root; any changed byte in
