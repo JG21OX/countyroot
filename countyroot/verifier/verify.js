@@ -125,16 +125,16 @@ function render(c, pid, res) {
   if (res.rows.length > 1) out.append(el("p", { class: "note", textContent: `This ID appears on ${res.rows.length} rows of the packet (the county lists it more than once). Each row is checked separately.` }));
   for (const r of res.rows) {
     const dl = el("dl");
-    const add = (k, v) => dl.append(el("dt", { textContent: k }), el("dd", { textContent: v }));
+    const add = (k, v, cls) => dl.append(el("dt", { textContent: k }), el("dd", { textContent: v, ...(cls ? { class: cls } : {}) }));
     add("Parcel ID", r.parcel_id);
     if (r.via) add("Found via", r.via === "normalized" ? "normalized ID (not part of the fingerprint)" : `${r.via} (lookup alias, not part of the fingerprint)`); add("Acres", r.acres); add("Lot sq ft", r.lot_sqft);
     if (res.leafVersion === 2) {
       add("Leaf", `${(r.index + 1).toLocaleString()} of ${c.n_parcels.toLocaleString()} (fingerprint format v2: sorted by parcel ID, bound to FIPS ${c.fips} and epoch ${c.epoch})`);
       if (r.occ) add("Repeat", `row ${r.occ + 1} with this exact ID (the county lists it more than once)`);
     } else add("CSV line", `${r.row.toLocaleString()} (header is line 1) · leaf ${(r.index + 1).toLocaleString()} of ${c.n_parcels.toLocaleString()}`);
-    if (r.leaf) add(res.leafVersion === 2 ? "Leaf hash" : "Leaf", r.leaf);
-    if (r.computed) add("Computed root", r.computed);
-    add(res.anchor.kind === "published" ? "Published root" : "On-chain root", res.anchor.root ?? c.merkle_root);
+    if (r.leaf) add(res.leafVersion === 2 ? "Leaf hash" : "Leaf", r.leaf, "hash");
+    if (r.computed) add("Computed root", r.computed, "hash");
+    add(res.anchor.kind === "published" ? "Published root" : "On-chain root", res.anchor.root ?? c.merkle_root, "hash");
     add("County / epoch", `${c.display} (FIPS ${c.fips}) · epoch ${c.epoch} · ${c.month}`);
     const box = el("div", { class: `result ${r.ok ? "ok" : "bad"}`, "data-ok": String(r.ok), "data-row": String(r.row ?? r.index + 1) },
       el("div", { class: "verdict", textContent: r.ok ? (res.anchor.kind === "published" ? "✓ Matches the published fingerprint" : "✓ Verified on-chain") : "✗ Not verified" }));

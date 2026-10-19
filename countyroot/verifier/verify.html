@@ -32,8 +32,11 @@
     .verdict { font-weight:700; font-size:17px; margin-bottom:6px; }
     .result.ok .verdict { color:var(--accent); } .result.bad .verdict { color:var(--bad); }
     dl { display:grid; grid-template-columns:150px 1fr; gap:4px 12px; font-size:13px; }
-    dt { color:var(--mute); } dd { word-break:break-all; }
-    code { font-size:12px; color:#c4c0d4; }
+    dt { color:var(--mute); } dd { min-width:0; overflow-wrap:anywhere; }
+    dd.hash { font:12px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; word-break:break-all; color:#c4c0d4; }
+    code { font-size:12px; color:#c4c0d4; overflow-wrap:anywhere; }
+    .banner, .result, .note { overflow-wrap:anywhere; }
+    @media (max-width:520px) { dl { grid-template-columns:1fr; gap:0; } dt { margin-top:8px; } dt:first-child { margin-top:0; } }
     ol.how { margin:8px 0 0 20px; font-size:14px; color:var(--mute); }
     .trust { margin-top:10px; }
     ul.sugg { list-style:none; display:flex; flex-wrap:wrap; gap:6px 14px; margin:8px 0 0; font-size:14px; }
@@ -65,8 +68,8 @@
     <ol class="how">
       <li>Your browser downloads a few small proof files for this county (about 100 KB or less each), not the whole parcel list.</li>
       <li>If the exact ID isn't in the county file, it tries the same ID without case, spaces, dashes, dots or leading zeros, then any lookup aliases the county has (for example Travis's TCAD Property ID). It always tells you which parcel ID it matched. Aliases only help find the parcel ID; they are not part of the fingerprint.</li>
-      <li>It recomputes the parcel's fingerprint (leaf) from the row: <code>sha256(parcel_id|acres|lot_sqft)</code>.</li>
-      <li>It hashes that leaf up the Merkle tree to a root, using the neighbouring fingerprints from the proof files.</li>
+      <li>It recomputes the parcel's fingerprint (leaf) from the row. In format v2 the leaf is a SHA-256 hash, labelled as a CountyRoot v2 leaf, of the county's FIPS code, the parcel ID exactly as the county publishes it, a repeat number (0 unless the county lists that exact ID more than once), and the acres and lot square feet as whole numbers (millionths of an acre and hundredths of a square foot), so writing 18089 or 18089.00 gives the same leaf. Older format v1 epochs, listed on the archive pages, used <code>sha256(parcel_id|acres|lot_sqft)</code>.</li>
+      <li>It hashes that leaf up the Merkle tree, using the neighbouring fingerprints from the proof files. The leaves are sorted by normalized parcel ID, so if an ID is not in the county file the page can prove it by showing the two neighbouring parcels it would fall between. The root also binds the county, the epoch and the number of parcels, so a proof only fits its own county and epoch.</li>
       <li>It reads the county's root account from Solana Devnet (finalized) and checks it is CountyRoot's, active, for this county and epoch, and equal to the computed root.</li>
     </ol>
     <p class="note trust">The proof files are not trusted: if any byte in them is wrong, the computed root won't match. If Solana can't be reached, the page compares with the fingerprint published on this site instead and tells you so; open the Explorer link to confirm it yourself. For a check that doesn't rely on this website, use the CountyRoot SDK's <code>countyroot verify</code> with the full parcel list.</p>
