@@ -40,6 +40,7 @@
     ol.how { margin:8px 0 0 20px; font-size:14px; color:var(--mute); }
     .trust { margin-top:10px; }
     ul.sugg { list-style:none; display:flex; flex-wrap:wrap; gap:6px 14px; margin:8px 0 0; font-size:14px; }
+    nav.top { font-size:14px; margin-top:4px; } nav.top a[aria-current] { color:var(--ink); text-decoration:none; font-weight:600; }
     footer { color:var(--mute); font-size:13px; margin-top:36px; border-top:1px solid var(--line); padding-top:14px; }
   </style>
 </head>
@@ -49,6 +50,7 @@
     <div>
       <h1>Verify a parcel</h1>
       <p class="sub">Checks one parcel against the county's fingerprint on Solana, in your browser.</p>
+      <nav class="top" aria-label="Site"><a href="/">Counties</a> · <a href="/verify/" aria-current="page">Verify a parcel</a> · <a href="/archive/">Archive</a></nav>
     </div>
   </header>
   <main>
