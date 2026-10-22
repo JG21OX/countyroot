@@ -2,7 +2,7 @@
   "name": "@countyroot/sdk",
   "version": "0.2.0",
   "description": "Verify CountyRoot parcel proofs (212 U.S. counties, 53 million+ parcels) against on-chain roots on Solana, and read CountyRoot accounts and events.",
-  "license": "MIT",
+  "license": "PolyForm-Shield-1.0.0",
   "homepage": "https://countyroot.com",
   "repository": {
     "type": "git",
