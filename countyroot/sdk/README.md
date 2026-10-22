@@ -1,11 +1,78 @@
 # @countyroot/sdk
 
-TypeScript SDK and CLI for [CountyRoot](https://countyroot.com): verify that a parcel is in a county
-packet whose Merkle root is posted on Solana, and read CountyRoot accounts and events safely.
+Verify U.S. county parcel records against their on-chain fingerprints on Solana.
+[CountyRoot](https://countyroot.com) posts one Merkle root per county: **212 counties, 53 million+ parcels**, live on
+Solana Devnet. This SDK checks a parcel against that root. No wallet, no account.
 
-Program: `7mi96nPvP6SB1eApAd7vN2uUEBDvNR9xVvLqPDt3uvwg` · Not a deed. Not a title. Not a token.
+The foundation of land tokenization on Solana.
 
-> Not published to npm yet. Build locally: `cd countyroot/sdk && npm install && npm run build`.
+Program: `7mi96nPvP6SB1eApAd7vN2uUEBDvNR9xVvLqPDt3uvwg` (Devnet) · Not a deed. Not a title. Not a token.
+Try it in the browser first: [countyroot.com/verify](https://countyroot.com/verify/).
+
+## Install
+
+```sh
+npm install @countyroot/sdk
+```
+
+Node 18+ (the `/web` entry needs Node 19+, or any modern browser, Deno or Bun).
+
+## Quickstart: verify a parcel
+
+```js
+import { verifyParcel } from "@countyroot/sdk/web";
+
+// Fetches the parcel's proof from packets.countyroot.com,
+// reads the county's PDA on Solana Devnet, and recomputes the root.
+const res = await verifyParcel("Travis.TX", "186831703");
+
+console.log(res.verified ? "VERIFIED" : "NOT VERIFIED");
+for (const row of res.rows) console.log(row.parcel_id, row.acres, row.lot_sqft, row.leaf);
+console.log("root from", res.anchor.kind, "slot", res.anchor.slot);
+```
+
+`verified` is `true` only when the parcel is in the county's packet, its proof leads to the root, and that root was
+read from an **active** CountyRoot account on-chain. If the RPC can't be reached, `anchor.kind` is `"published"` and
+`verified` stays `false`. Pass `{ rpc: "https://your-devnet-rpc" }` to use your own RPC (the public Devnet RPC rate-limits).
+
+Runnable version: `node examples/verify-parcel.mjs Travis.TX 186831703` (exit code 0 means verified).
+
+The same code runs the [countyroot.com/verify](https://countyroot.com/verify/) page. In a page without a bundler:
+
+```html
+<script type="module">
+  import { verifyParcel } from "https://cdn.jsdelivr.net/npm/@countyroot/sdk/dist/browser/countyroot-web.min.js";
+  console.log((await verifyParcel("Travis.TX", "186831703")).verified);
+</script>
+```
+
+## Read a county PDA
+
+Each county epoch has its own PDA (program-derived address), seeded by `"county_root"`, FIPS and epoch (u32 LE).
+It holds the Merkle root, parcel count, schema, status (1 = active, 2 = retracted) and post time.
+
+```js
+// Browser-friendly, no dependencies:
+import { getCounty, readCountyRoot, listCounties } from "@countyroot/sdk/web";
+const county = await getCounty("Travis.TX");          // { fips: 48453, epoch, pda, merkle_root, n_parcels, ... }
+const acct = await readCountyRoot(county.pda);         // decoded account, owner checked
+console.log((await listCounties()).length);            // 212
+
+// Node, with @solana/web3.js:
+import { Connection, clusterApiUrl } from "@solana/web3.js";
+import { countyRootPda, fetchCountyRoot } from "@countyroot/sdk";
+const pda = countyRootPda(48453, 3);                   // derive it yourself
+const root = await fetchCountyRoot(new Connection(clusterApiUrl("devnet")), 48453, 3);
+```
+
+## Entry points
+
+| Import | What | Runs in |
+|---|---|---|
+| `@countyroot/sdk` | Leaf/tree rules (v1, v2), PDAs, account and event decoding, RPC helpers, CLI | Node (ESM and CJS) |
+| `@countyroot/sdk/web` | `verifyParcel`, `getCounty`, `listCounties`, `readCountyRoot` (fetch + WebCrypto, zero dependencies) | Browsers, Node 19+, Deno, Bun |
+| `@countyroot/sdk/browser` | `/web` as one minified ES module (for CDNs) | Browsers |
+| `@countyroot/sdk/idl.json` | Anchor IDL of the CountyRoot program | anywhere |
 
 ## The trust rule for events (read this first)
 
@@ -53,9 +120,16 @@ active (not retracted), and have the same parcel count. Exit code 0 means VERIFI
 
 ## Tests
 
-`npm test`. Set `COUNTYROOT_PACKET=/path/X.csv` (with `X.root.json` beside it) to also check a
-real packet end to end.
+`npm test` (builds, then runs offline tests). Set `COUNTYROOT_PACKET=/path/X.csv` (with `X.root.json` beside it) to
+also check a real packet end to end.
+
+## Links
+
+- Verify a parcel in your browser: [countyroot.com/verify](https://countyroot.com/verify/)
+- Website: [countyroot.com](https://countyroot.com) · X: [@CountyRootSol](https://x.com/CountyRootSol)
+- Source: [github.com/JG21OX/countyroot](https://github.com/JG21OX/countyroot) (`countyroot/sdk`)
 
 ## License
 
-[MIT](LICENSE). The SDK in this folder is MIT-licensed so anyone can build on CountyRoot data; the rest of the CountyRoot repo, including the on-chain program, stays under PolyForm Shield 1.0.0.
+[MIT](LICENSE). The SDK in this folder is MIT-licensed so anyone can build on CountyRoot data; the rest of the
+CountyRoot repo, including the on-chain program, stays under PolyForm Shield 1.0.0.

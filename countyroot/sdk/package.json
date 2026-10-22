@@ -1,8 +1,7 @@
 {
   "name": "@countyroot/sdk",
-  "version": "0.1.0",
-  "private": true,
-  "description": "Verify CountyRoot parcel proofs and read CountyRoot accounts and events on Solana.",
+  "version": "0.2.0",
+  "description": "Verify CountyRoot parcel proofs (212 U.S. counties, 53 million+ parcels) against on-chain roots on Solana, and read CountyRoot accounts and events.",
   "license": "MIT",
   "homepage": "https://countyroot.com",
   "repository": {
@@ -11,28 +10,74 @@
     "directory": "countyroot/sdk"
   },
   "type": "module",
-  "main": "dist/src/index.js",
+  "main": "dist/cjs/index.cjs",
   "types": "dist/src/index.d.ts",
   "bin": {
     "countyroot": "dist/src/cli.js"
   },
   "files": [
-    "dist",
+    "dist/src",
+    "dist/cjs",
+    "dist/browser",
+    "idl",
+    "examples",
     "README.md",
     "LICENSE"
   ],
   "scripts": {
-    "build": "tsc -p .",
-    "test": "tsc -p . && node --test dist/test/"
+    "clean": "rm -rf dist",
+    "build": "npm run clean && tsc -p . && node scripts/bundle.mjs",
+    "test": "npm run build && node --test dist/test/",
+    "example": "node examples/verify-parcel.mjs",
+    "prepublishOnly": "npm test && npm run check-pack",
+    "check-pack": "node scripts/check-pack.mjs"
   },
   "dependencies": {
     "@solana/web3.js": "^1.99.0"
   },
   "devDependencies": {
-    "typescript": "^5.6.0",
-    "@types/node": "^20.0.0"
+    "@types/node": "^20.0.0",
+    "esbuild": "^0.28.2",
+    "typescript": "^5.6.0"
   },
   "engines": {
     "node": ">=18"
+  },
+  "keywords": [
+    "solana",
+    "countyroot",
+    "parcel",
+    "land",
+    "merkle",
+    "proof",
+    "real-estate",
+    "tokenization"
+  ],
+  "bugs": {
+    "url": "https://github.com/JG21OX/countyroot/issues"
+  },
+  "author": "CountyRoot <hello@countyroot.com> (https://countyroot.com)",
+  "sideEffects": false,
+  "module": "dist/src/index.js",
+  "exports": {
+    ".": {
+      "types": "./dist/src/index.d.ts",
+      "import": "./dist/src/index.js",
+      "require": "./dist/cjs/index.cjs"
+    },
+    "./web": {
+      "types": "./dist/src/web.d.ts",
+      "browser": "./dist/src/web.js",
+      "import": "./dist/src/web.js",
+      "require": "./dist/cjs/web.cjs"
+    },
+    "./browser": "./dist/browser/countyroot-web.min.js",
+    "./idl.json": "./idl/countyroot.json",
+    "./package.json": "./package.json"
+  },
+  "unpkg": "dist/browser/countyroot-web.min.js",
+  "jsdelivr": "dist/browser/countyroot-web.min.js",
+  "publishConfig": {
+    "access": "public"
   }
 }
