@@ -67,7 +67,9 @@ try {
   const mdir = path.join(tmp, "manifests"); fs.writeFileSync(path.join(tmp, "labels.txt"), C.map((c) => c.label).join("\n"));
   const run = async (argv) => { console.log(`$ migrate_v2.mjs ${argv.join(" ")}`); const r = await migrate(argv, { log }); return r; };
   const meta = path.join(tmp, "meta.json");
-  fs.writeFileSync(meta, JSON.stringify(Object.fromEntries(C.map((c) => [c.label, { county_label: `${c.label[0]} County, ZZ`, fetched_at: "2026-10-01T12:00:00Z", data_as_of: "2026-09-30T00:00:00Z", source_url: "https://example.gov/parcels.zip", source_format: "shapefile" }]))));
+  fs.writeFileSync(meta, JSON.stringify(Object.fromEntries(C.map((c) => [c.label, { county_label: `${c.label[0]} County, ZZ`, ...(c.label === "B.ZZ"
+    ? { fetched_at: null, fetched_no_later_than: "2026-10-02T08:30:00Z", fetched_no_later_than_source: "git rehearsal adds post script [commit time]", fetched_on: "2026-10-01" }
+    : { fetched_at: "2026-10-01T12:00:00Z" }), data_as_of: "2026-09-30T00:00:00Z", source_url: "https://example.gov/parcels.zip", source_format: "shapefile" }]))));
   fs.writeFileSync(path.join(tmp, "nometa.json"), "{}");
   assert.equal(await run(["manifests", "--batch", path.join(tmp, "labels.txt"), "--dir", v2dir, "--out", mdir, "--meta", path.join(tmp, "nometa.json")]), 1);
   assert.equal(await run(["manifests", "--batch", path.join(tmp, "labels.txt"), "--dir", v2dir, "--out", mdir, "--meta", meta, "--builder-commit", "rehearsal"]), 0);
@@ -87,7 +89,11 @@ try {
     const latest = await sdk.fetchLatest(conn, c.fips, "confirmed");
     if (c.e2status === 1) {
       assert.equal(e2i.data.length, 256); const e2 = sdk.decodeCountyRoot(e2i.data);
-      assert.equal(e2.provenance.migrated, true); assert.equal(e1.status, sdk.STATUS_SUPERSEDED);
+      assert.equal(e2.provenance.migrated, true);
+      const ub = c.label === "B.ZZ";
+      assert.equal(e2i.data[233], ub ? 3 : 1, "flags byte"); assert.equal(e2.provenance.fetchedAtIsUpperBound, ub);
+      assert.equal(new Date(Number(e2.provenance.fetchedAt) * 1000).toISOString(), ub ? "2026-10-02T08:30:00.000Z" : "2026-10-01T12:00:00.000Z");
+      if (ub) log(`checked ${c.label}: flags=3 (MIGRATED|FETCHED_AT_IS_UPPER_BOUND), fetched no later than 2026-10-02T08:30:00Z`); assert.equal(e1.status, sdk.STATUS_SUPERSEDED);
       assert.equal(latest.epoch, 2); assert.equal(latest.root.merkleRoot.toString("hex"), c.v2root);
       const mf = fs.readdirSync(mdir).find((f) => f.startsWith(c.label + "."));
       assert.deepEqual(sdk.verifyManifest(fs.readFileSync(path.join(mdir, mf)), e2).problems, []);

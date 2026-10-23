@@ -39,7 +39,7 @@ const HEX64 = /^[0-9a-f]{64}$/, ISO = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/;
 
 /** Throws VerifyError if a manifest could carry personal data or is malformed. */
 export function piiGuard(sdk, m) {
-  const extra = Object.keys(m).filter((k) => !sdk.MANIFEST_KEYS.includes(k));
+  const extra = Object.keys(m).filter((k) => !sdk.MANIFEST_KEYS.includes(k) && !sdk.MANIFEST_OPTIONAL_KEYS.includes(k));
   if (extra.length) throw new VerifyError(`manifest has keys outside the allow-list: ${extra.join(", ")}`);
   const missing = sdk.MANIFEST_KEYS.filter((k) => !(k in m));
   if (missing.length) throw new VerifyError(`manifest is missing keys: ${missing.join(", ")}`);
@@ -58,6 +58,9 @@ export function piiGuard(sdk, m) {
   if (m.source_sha256 !== null && !HEX64.test(m.source_sha256)) throw new VerifyError("source_sha256 must be 64 hex or null");
   if (!ISO.test(m.fetched_at ?? "")) throw new VerifyError(`fips ${m.fips}: fetched_at must be YYYY-MM-DDTHH:MM:SSZ (the program requires it; give it in --meta for migrated roots)`);
   if (m.data_as_of !== null && Date.parse(m.data_as_of) > Date.parse(m.fetched_at)) throw new VerifyError(`fips ${m.fips}: data_as_of is after fetched_at`);
+  if ("fetched_at_is_upper_bound" in m && typeof m.fetched_at_is_upper_bound !== "boolean") throw new VerifyError("fetched_at_is_upper_bound must be true or false");
+  if (m.fetched_at_is_upper_bound === true && !m.fetched_at_source) throw new VerifyError(`fips ${m.fips}: an upper-bound fetched_at needs fetched_at_source`);
+  if (m.fetched_on != null && !/^\d{4}-\d{2}-\d{2}$/.test(m.fetched_on)) throw new VerifyError("fetched_on must be YYYY-MM-DD or null");
   if (m.data_as_of !== null && !ISO.test(m.data_as_of)) throw new VerifyError("data_as_of must be YYYY-MM-DDTHH:MM:SSZ or null");
   if (!Number.isInteger(m.fips) || !Number.isInteger(m.epoch) || m.epoch < 1) throw new VerifyError("fips/epoch must be integers");
   if (![1, 2].includes(m.leaf_version)) throw new VerifyError("leaf_version must be 1 or 2");
@@ -65,7 +68,10 @@ export function piiGuard(sdk, m) {
 
 /** Manifest for a migrated root, from its root.json and the packet CSV beside it. source_sha256 is null (D3). */
 //  meta (optional, --meta <file.json>): { "<label>": { county_label, source_url, source_query, source_format, fetched_at,
-//  data_as_of, source_record_count } }. Unknown fields stay null: nothing is invented for a migrated root.
+//  data_as_of, source_record_count, fetched_on, fetched_no_later_than, fetched_no_later_than_source } }.
+//  Unknown fields stay null: nothing is invented for a migrated root. With no fetched_at but a
+//  fetched_no_later_than bound, fetched_at = the bound and fetched_at_is_upper_bound = true (the on-chain
+//  FLAG_FETCHED_AT_IS_UPPER_BOUND); fetched_at_source and the day-only fetched_on go in the manifest.
 export function buildManifest(sdk, rootPath, { builderCommit = null, meta = {} } = {}) {
   const raw = JSON.parse(fs.readFileSync(rootPath, "utf8"));
   const doc = { ...raw, ...(meta[raw.label] ?? {}) };
@@ -83,17 +89,24 @@ export function buildManifest(sdk, rootPath, { builderCommit = null, meta = {} }
     pii_scan: doc.pii_scan ?? { result: "pass", tool: "scripts/verify.mjs" }, n_parcels: Number(doc.n_parcels), merkle_root: doc.merkle_root,
     supersedes_epoch: doc.supersedes_epoch ?? null, reason: "migrated",
   };
+  if (!m.fetched_at && doc.fetched_no_later_than) {
+    // No recorded download time: put the "fetched no later than" bound in fetched_at and flag it.
+    m.fetched_at = iso(doc.fetched_no_later_than); m.fetched_at_is_upper_bound = true;
+    m.fetched_at_source = doc.fetched_no_later_than_source ?? null; m.fetched_on = doc.fetched_on ?? null;
+  } else if (m.fetched_at && meta[raw.label]) {
+    m.fetched_at_is_upper_bound = false; m.fetched_at_source = doc.fetched_at_source ?? null; m.fetched_on = null;
+  }
   piiGuard(sdk, m);
   return { label: doc.label, bytes: sdk.canonicalManifest(m), manifest: m };
 }
 
 // ---------------------------------------------------------------- instructions
 const keys = (...k) => k.map(([pubkey, w, s]) => ({ pubkey, isWritable: !!w, isSigner: !!s }));
-export function migrateRootIx(sdk, { fips, epoch, manifestSha, sourceSha, packetSha, dataAsOf, fetchedAt, leafVersion, attestor }) {
-  const d = Buffer.alloc(8 + 96 + 8 + 8 + 1);
+export function migrateRootIx(sdk, { fips, epoch, manifestSha, sourceSha, packetSha, dataAsOf, fetchedAt, leafVersion, fetchedAtIsUpperBound = false, attestor }) {
+  const d = Buffer.alloc(8 + 96 + 8 + 8 + 1 + 1);
   sdk.discriminator("global:migrate_root").copy(d, 0);
   manifestSha.copy(d, 8); sourceSha.copy(d, 40); packetSha.copy(d, 72);
-  d.writeBigInt64LE(BigInt(dataAsOf), 104); d.writeBigInt64LE(BigInt(fetchedAt), 112); d.writeUInt8(leafVersion, 120);
+  d.writeBigInt64LE(BigInt(dataAsOf), 104); d.writeBigInt64LE(BigInt(fetchedAt), 112); d.writeUInt8(leafVersion, 120); d.writeUInt8(fetchedAtIsUpperBound ? 1 : 0, 121);
   return new TransactionInstruction({ programId: sdk.PROGRAM_ID, data: d, keys: keys([sdk.configPda()], [sdk.countyRootPda(fips, epoch), 1], [attestor, 1, 1], [SystemProgram.programId]) });
 }
 export function initHeadIx(sdk, { fips, epoch, attestor }) {
@@ -131,8 +144,10 @@ export async function planCounty(sdk, conn, bytes, attestor) {
   else if (li.data.length < V2_LEN) {
     steps.push({ op: "migrate_root", epoch, grow: V2_LEN - li.data.length });
     ixs.push(migrateRootIx(sdk, { fips, epoch, manifestSha: base.manifestSha, sourceSha: Buffer.alloc(32), packetSha: Buffer.from(m.packet_sha256, "hex"),
-      dataAsOf: sdk.isoToUnix(m.data_as_of), fetchedAt: sdk.isoToUnix(m.fetched_at), leafVersion: m.leaf_version, attestor }));
-  } else if (!latest.provenance.manifestSha256.equals(base.manifestSha)) throw new VerifyError(`fips ${fips} e${epoch}: already migrated with a different manifest`);
+      dataAsOf: sdk.isoToUnix(m.data_as_of), fetchedAt: sdk.isoToUnix(m.fetched_at), leafVersion: m.leaf_version,
+      fetchedAtIsUpperBound: m.fetched_at_is_upper_bound === true, attestor }));
+  } else if (latest.provenance.fetchedAtIsUpperBound !== (m.fetched_at_is_upper_bound === true)) throw new VerifyError(`fips ${fips} e${epoch}: on-chain fetched_at_is_upper_bound differs from the manifest`);
+  else if (!latest.provenance.manifestSha256.equals(base.manifestSha)) throw new VerifyError(`fips ${fips} e${epoch}: already migrated with a different manifest`);
   const hi = await get(sdk.countyHeadPda(fips));
   if (!hi) { steps.push({ op: "init_head", epoch }); ixs.push(initHeadIx(sdk, { fips, epoch, attestor })); }
   else {

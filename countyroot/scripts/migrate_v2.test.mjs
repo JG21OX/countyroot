@@ -2,7 +2,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { loadSdk } from "./verify.mjs";
-import { piiGuard, main } from "./migrate_v2.mjs";
+import { piiGuard, main, migrateRootIx } from "./migrate_v2.mjs";
+import fs from "node:fs";
 
 const sdk = await loadSdk();
 const good = () => ({
@@ -73,4 +74,29 @@ test("plan: retracted-latest county already done -> no steps; wrong head is refu
 test("plan: newest epoch SUPERSEDED is refused", async () => {
   const { bytes, c } = county([sdk.STATUS_ACTIVE, sdk.STATUS_SUPERSEDED]);
   await assert.rejects(planCounty(sdk, c, bytes, att), /expected ACTIVE or RETRACTED/);
+});
+
+test("piiGuard: optional upper-bound keys", () => {
+  const ub = { ...good(), fetched_at_is_upper_bound: true, fetched_at_source: "git abc1234 adds post script [commit time]", fetched_on: "2026-10-01" };
+  piiGuard(sdk, ub);
+  piiGuard(sdk, { ...good(), fetched_at_is_upper_bound: false, fetched_at_source: "tar mtime", fetched_on: null });
+  assert.throws(() => piiGuard(sdk, { ...ub, fetched_at_is_upper_bound: "yes" }), /true or false/);
+  assert.throws(() => piiGuard(sdk, { ...ub, fetched_at_source: undefined }), /fetched_at_source/);
+  assert.throws(() => piiGuard(sdk, { ...ub, fetched_on: "Oct 1" }), /fetched_on/);
+});
+test("migrateRootIx: flag byte at offset 121", () => {
+  const a = { fips: 48453, epoch: 2, manifestSha: Buffer.alloc(32, 1), sourceSha: Buffer.alloc(32), packetSha: Buffer.alloc(32, 2), dataAsOf: 0, fetchedAt: 1790000000, leafVersion: 2, attestor: sdk.web3 ? undefined : undefined };
+  for (const ub of [false, true]) {
+    let ix; try { ix = migrateRootIx(sdk, { ...a, fetchedAtIsUpperBound: ub, attestor: new sdk.PublicKey(Buffer.alloc(32, 9)) }); } catch (e) { ix = migrateRootIx(sdk, { ...a, fetchedAtIsUpperBound: ub, attestor: Buffer.alloc(32, 9) }); }
+    assert.equal(ix.data.length, 122); assert.equal(ix.data[121], ub ? 1 : 0);
+  }
+});
+test("every real meta bound passes piiGuard", { skip: !fs.existsSync("/workspace/countyroot/meta/meta.json") }, () => {
+  const meta = JSON.parse(fs.readFileSync("/workspace/countyroot/meta/meta.json", "utf8"));
+  let n = 0;
+  for (const m of Object.values(meta.counties ?? meta)) {
+    if (m.fetched_at || !m.fetched_no_later_than) continue;
+    piiGuard(sdk, { ...good(), fetched_at: m.fetched_no_later_than, fetched_at_is_upper_bound: true, fetched_at_source: m.fetched_no_later_than_source, fetched_on: m.fetched_on ?? null }); n++;
+  }
+  assert.equal(n, 163);
 });

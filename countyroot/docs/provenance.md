@@ -5,7 +5,7 @@ Program v2 records where each root came from and keeps a county's history explic
 - **`post_root_v2`** creates a 256-byte `CountyRoot` with a provenance tail. The tail holds:
   - `manifest_sha256`, `source_sha256`, `packet_sha256`
   - `data_as_of`, `fetched_at`, `posted_slot`, `leaf_version`
-  - `flags` (bit 0 = migrated), `superseded_by`, `retract_reason`, `status_changed_at`
+  - `flags` (bit 0 = migrated, bit 1 = `FETCHED_AT_IS_UPPER_BOUND`: `fetched_at` is a "no later than" bound, not the fetch time), `superseded_by`, `retract_reason`, `status_changed_at`
 - **`post_root_v2`** for epoch N > 1 marks epoch N-1 `SUPERSEDED` (status 3) in the same transaction.
 - **`CountyHead`** (PDA `["county_head", fips_le]`, 48 bytes) stores `latest_epoch`, `latest_active_epoch` and `n_epochs`.
   - Integrators read the head to answer "what is current".
@@ -40,7 +40,9 @@ If a county's latest epoch is retracted (decision D5), that epoch is left as it 
 `scripts/build_meta.py --root <data dir> --out <meta.json>` writes the `--meta` file from the build records. Write it outside `public/`. It records each county's source URL and query, `fetched_at` and `data_as_of`, and which file each date came from. No date is estimated:
 - `fetched_at` comes from the mtime of the exact packet CSV (sha256 checked) inside a build archive. A zip time is used only when a git commit pins its time zone.
 - A batch note such as "pulled 2026-10-14" gives only a day. It goes in `fetched_on`, and `fetched_at` stays null.
-- `migrate_v2.mjs manifests` refuses a county with no `fetched_at`, because the program needs one.
+- Lookback (added to meta.json by hand review, not by `build_meta.py`): a county with no real fetch time gets `fetched_no_later_than` (the earliest commit time of the script that posted its root, or the on-chain post time), with `fetched_no_later_than_source` naming the evidence.
+- `migrate_v2.mjs manifests` uses `fetched_at` when there is one (flag clear, `fetched_at_is_upper_bound: false`). Otherwise it puts `fetched_no_later_than` in `fetched_at` and sets `fetched_at_is_upper_bound: true`, passed to `migrate_root` so the program sets flag bit 1. The manifest keeps `fetched_at_source` and the day-only `fetched_on`. These three manifest keys are optional; `verifyManifest` checks the boolean against the on-chain bit (absent = false). A county with neither is refused.
+- SDK 0.3.0 exposes `provenance.fetchedAtIsUpperBound` (web: `fetchedAtIsUpperBound`, `fetchedAtText`); the CLI and web show "fetched no later than <time>" for flagged roots and "fetched <time>" otherwise. Re-running the migration on an already-migrated root fails if the on-chain bit differs from the manifest.
 
 The migration instructions refuse while the program is paused. The order is:
 1. pause
