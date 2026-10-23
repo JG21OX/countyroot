@@ -212,7 +212,8 @@ pub mod countyroot {
     }
 
     /// DEVNET MIGRATION ONLY. Create the CountyHead for a county whose latest posted
-    /// epoch is `latest_epoch` (must exist and be ACTIVE). The caller (the migration
+    /// epoch is `latest_epoch` (must exist and be ACTIVE, or RETRACTED: then the head has
+    /// latest_active_epoch = 0, decision D5). The caller (the migration
     /// script) is responsible for checking that no higher epoch exists.
     pub fn init_head(ctx: Context<InitHead>, fips: u32, latest_epoch: u32) -> Result<()> {
         require!(cfg!(feature = "devnet"), CountyError::DevnetOnly);
@@ -223,12 +224,18 @@ pub mod countyroot {
         );
         require!(valid_fips(fips), CountyError::BadFips);
         require!(latest_epoch > 0, CountyError::EpochNotNext);
-        require!(ctx.accounts.latest_root.status == STATUS_ACTIVE, CountyError::NotActive);
+        // D5: a county whose newest epoch was retracted gets a head with no active root
+        // (latest_active_epoch = 0); its older ACTIVE epochs are then marked superseded.
+        let latest_active_epoch = match ctx.accounts.latest_root.status {
+            STATUS_ACTIVE => latest_epoch,
+            STATUS_RETRACTED => 0,
+            _ => return err!(CountyError::NotActive),
+        };
         let clock = Clock::get()?;
         let head = &mut ctx.accounts.county_head;
         head.fips = fips;
         head.latest_epoch = latest_epoch;
-        head.latest_active_epoch = latest_epoch;
+        head.latest_active_epoch = latest_active_epoch;
         head.n_epochs = latest_epoch;
         head.updated_at = clock.unix_timestamp;
         head.bump = ctx.bumps.county_head;

@@ -611,7 +611,8 @@
       "name": "init_head",
       "docs": [
         "DEVNET MIGRATION ONLY. Create the CountyHead for a county whose latest posted",
-        "epoch is `latest_epoch` (must exist and be ACTIVE). The caller (the migration",
+        "epoch is `latest_epoch` (must exist and be ACTIVE, or RETRACTED: then the head has",
+        "latest_active_epoch = 0, decision D5). The caller (the migration",
         "script) is responsible for checking that no higher epoch exists."
       ],
       "discriminator": [

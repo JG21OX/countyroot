@@ -118,3 +118,32 @@ fn retract_legacy_99_byte_root_records_event_only() {
     assert_eq!((d.len(), h.root(F, 1).status), (99, STATUS_RETRACTED));
     assert_eq!(h.head(F).latest_active_epoch, 0);
 }
+
+#[test]
+fn retracted_latest_gets_head_with_no_active_root() {
+    // D5: newest epoch retracted -> head(latest = 2, active = 0); older ACTIVE epochs superseded.
+    let mut h = H::new(SO_DEVNET);
+    migrated(&mut h, F, 1, 99);
+    h.inject_legacy(F, 2, 99, STATUS_RETRACTED);
+    let att = h.att.pubkey();
+    let logs = h.att_send(init_head_ix(att, F, 2)).unwrap();
+    let hd = h.head(F);
+    assert_eq!((hd.latest_epoch, hd.latest_active_epoch, hd.n_epochs), (2, 0, 2));
+    let ev: HeadUpdated = event(&logs);
+    assert_eq!((ev.latest_epoch, ev.latest_active_epoch), (2, 0));
+    err_has(h.att_send(supersede_ix(att, F, 2, 2)), "NotActive");
+    h.att_send(supersede_ix(att, F, 1, 2)).unwrap();
+    assert_eq!((h.root(F, 1).status, h.root(F, 2).status), (STATUS_SUPERSEDED, STATUS_RETRACTED));
+    assert_eq!(h.data(&cr(F, 2)).len(), 99, "retracted root is not migrated or resized");
+    // a later v2 post starts from no active root
+    h.post(F, 3, None).unwrap();
+    let hd = h.head(F);
+    assert_eq!((hd.latest_epoch, hd.latest_active_epoch), (3, 3));
+}
+
+#[test]
+fn init_head_rejects_superseded_latest() {
+    let mut h = H::new(SO_DEVNET);
+    h.inject_legacy(F, 1, 99, STATUS_SUPERSEDED);
+    err_has(h.att_send(init_head_ix(h.att.pubkey(), F, 1)), "NotActive");
+}
