@@ -11,9 +11,10 @@
 //   migrate_root(latest)  ->  init_head(fips, latest)  ->  mark_superseded(older ACTIVE epochs, by latest)
 // Idempotent: a re-run reads the chain and only adds the missing steps; a fully migrated county is skipped.
 // Refusals (stop the batch): manifest not canonical / bad keys / PII guard; the manifest's merkle_root or
-// n_parcels differ from the on-chain account; an epoch above the manifest's exists; the latest root is not
-// ACTIVE (a county whose newest epoch is retracted is reported and skipped: it has no active root, per D5);
-// the program is paused; the signer is not Config.attestor.
+// n_parcels differ from the on-chain account; an epoch above the manifest's exists; the latest root is
+// neither ACTIVE nor RETRACTED; the program is paused; the signer is not Config.attestor.
+// Newest epoch RETRACTED (D5): no migrate_root for it; init_head gives latest_active_epoch = 0 and the older
+// ACTIVE epochs are marked superseded (by the retracted latest), so the county has no active root.
 // The manifest carries only county-level metadata. No parcel rows, owner names or site addresses, and nothing
 // is hashed from them. Secret key bytes are never printed.
 import fs from "fs";
@@ -119,16 +120,26 @@ export async function planCounty(sdk, conn, bytes, attestor) {
   const base = { fips, epoch, label: m.county_label, manifestSha: sdk.manifestSha256(bytes) };
   if (latest.merkleRoot.toString("hex") !== m.merkle_root || latest.nParcels !== BigInt(m.n_parcels) || latest.schema.toString("hex") !== m.schema_sha256)
     throw new VerifyError(`fips ${fips} e${epoch}: manifest root/count/schema differ from the on-chain account`);
-  if (latest.status !== sdk.STATUS_ACTIVE) return { ...base, steps: [], skip: `latest epoch ${epoch} is ${sdk.STATUS_NAMES[latest.status] ?? latest.status}; left with no active root` };
+  // D5: a RETRACTED newest epoch is not migrated (no provenance write); the head gets latest_active_epoch = 0
+  // and the older ACTIVE epochs are marked superseded, so the county ends with no active root.
+  const retracted = latest.status === sdk.STATUS_RETRACTED;
+  if (!retracted && latest.status !== sdk.STATUS_ACTIVE)
+    throw new VerifyError(`fips ${fips}: latest epoch ${epoch} is ${sdk.STATUS_NAMES[latest.status] ?? latest.status}; expected ACTIVE or RETRACTED`);
+  if (retracted) base.noActiveRoot = true;
   const steps = [], ixs = [];
-  if (li.data.length < V2_LEN) {
+  if (retracted) { /* leave the retracted account as it is */ }
+  else if (li.data.length < V2_LEN) {
     steps.push({ op: "migrate_root", epoch, grow: V2_LEN - li.data.length });
     ixs.push(migrateRootIx(sdk, { fips, epoch, manifestSha: base.manifestSha, sourceSha: Buffer.alloc(32), packetSha: Buffer.from(m.packet_sha256, "hex"),
       dataAsOf: sdk.isoToUnix(m.data_as_of), fetchedAt: sdk.isoToUnix(m.fetched_at), leafVersion: m.leaf_version, attestor }));
   } else if (!latest.provenance.manifestSha256.equals(base.manifestSha)) throw new VerifyError(`fips ${fips} e${epoch}: already migrated with a different manifest`);
   const hi = await get(sdk.countyHeadPda(fips));
   if (!hi) { steps.push({ op: "init_head", epoch }); ixs.push(initHeadIx(sdk, { fips, epoch, attestor })); }
-  else { const h = sdk.decodeCountyHead(hi.data); if (h.latestEpoch !== epoch) throw new VerifyError(`fips ${fips}: head says latest ${h.latestEpoch}, manifest says ${epoch}`); }
+  else {
+    const h = sdk.decodeCountyHead(hi.data);
+    if (h.latestEpoch !== epoch) throw new VerifyError(`fips ${fips}: head says latest ${h.latestEpoch}, manifest says ${epoch}`);
+    if (h.latestActiveEpoch !== (retracted ? 0 : epoch)) throw new VerifyError(`fips ${fips}: head latest_active_epoch ${h.latestActiveEpoch} does not match epoch ${epoch} status`);
+  }
   for (let e = 1; e < epoch; e++) {
     const oi = await get(sdk.countyRootPda(fips, e));
     if (!oi) continue;                                       // closed epochs leave gaps
@@ -200,7 +211,7 @@ export async function main(argv, { log = console.log, connection, signer: inject
     const plans = [];
     for (const f of files) {
       const p = await planCounty(sdk, conn, fs.readFileSync(path.join(expand(a.manifests), f)), signer);
-      log(p.skip ? `skip ${f}: ${p.skip}` : p.steps.length ? `todo ${f}: ${p.steps.map((s) => s.op + (s.op === "mark_superseded" ? `(e${s.epoch})` : "")).join(" + ")}` : `done ${f}: already migrated`);
+      log(p.skip ? `skip ${f}: ${p.skip}` : p.steps.length ? `todo ${f}: ${p.steps.map((s) => s.op + (s.op === "mark_superseded" ? `(e${s.epoch})` : "")).join(" + ")}${p.noActiveRoot ? " (latest retracted: no active root)" : ""}` : `done ${f}: already migrated`);
       plans.push(p);
       if (a.max && plans.filter((x) => x.steps.length).length >= Number(a.max)) break;
     }

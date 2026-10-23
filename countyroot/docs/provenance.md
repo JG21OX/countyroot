@@ -33,7 +33,14 @@ Per county, `scripts/migrate_v2.mjs` sends one transaction with the steps below.
 2. `init_head`.
 3. `mark_superseded` for each older ACTIVE epoch.
 
-If a county's latest epoch is retracted, it is reported and skipped, so it gets no head.
+If a county's latest epoch is retracted (decision D5), that epoch is left as it is (no `migrate_root`). `init_head` gives the county a head with `latest_active_epoch = 0`, and each older ACTIVE epoch is marked superseded by the retracted latest. The county then has no active root, and `fetchLatest` returns `{ epoch: 0, root: null }`.
+
+### Dates in the manifests (`--meta`)
+
+`scripts/build_meta.py --root <data dir> --out <meta.json>` writes the `--meta` file from the build records. Write it outside `public/`. It records each county's source URL and query, `fetched_at` and `data_as_of`, and which file each date came from. No date is estimated:
+- `fetched_at` comes from the mtime of the exact packet CSV (sha256 checked) inside a build archive. A zip time is used only when a git commit pins its time zone.
+- A batch note such as "pulled 2026-10-14" gives only a day. It goes in `fetched_on`, and `fetched_at` stays null.
+- `migrate_v2.mjs manifests` refuses a county with no `fetched_at`, because the program needs one.
 
 The migration instructions refuse while the program is paused. The order is:
 1. pause

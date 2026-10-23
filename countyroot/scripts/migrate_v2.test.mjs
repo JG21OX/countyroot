@@ -30,3 +30,47 @@ test("refuses mainnet and unknown commands", async () => {
   assert.equal(await main(["run", "--manifests", "/x", "--cluster", "https://api.mainnet-beta.solana.com"], { log }), 2);
   assert.equal(await main(["post"], { log }), 2);
 });
+
+// ---- planCounty against a mocked connection (legacy 98-byte accounts, as the old program wrote them)
+import { planCounty } from "./migrate_v2.mjs";
+import { Keypair } from "@solana/web3.js";
+const legacy = (fips, epoch, status, m) => {
+  const d = Buffer.alloc(98); sdk.discriminator("account:CountyRoot").copy(d, 0);
+  d.writeUInt32LE(fips, 8); d.writeUInt32LE(epoch, 12); d.writeBigUInt64LE(BigInt(m.n_parcels), 16);
+  Buffer.from(m.merkle_root, "hex").copy(d, 24); Buffer.from(m.schema_sha256, "hex").copy(d, 56); d[88] = status; return d;
+};
+const headData = (fips, latest, active) => {
+  const d = Buffer.alloc(41); sdk.discriminator("account:CountyHead").copy(d, 0);
+  d.writeUInt32LE(fips, 8); d.writeUInt32LE(latest, 12); d.writeUInt32LE(active, 16); d.writeUInt32LE(latest, 20); return d;
+};
+const conn = (accts) => ({ getAccountInfo: async (k) => (accts.has(k.toBase58()) ? { owner: sdk.PROGRAM_ID, data: accts.get(k.toBase58()) } : null) });
+const county = (statuses, head) => {
+  const m = good(); m.epoch = statuses.length; const a = new Map();
+  statuses.forEach((s, i) => a.set(sdk.countyRootPda(m.fips, i + 1).toBase58(), legacy(m.fips, i + 1, s, m)));
+  if (head) a.set(sdk.countyHeadPda(m.fips).toBase58(), headData(m.fips, ...head));
+  return { bytes: sdk.canonicalManifest(m), c: conn(a) };
+};
+const att = Keypair.generate().publicKey;
+
+test("plan: newest epoch ACTIVE -> migrate_root + init_head + mark_superseded", async () => {
+  const { bytes, c } = county([sdk.STATUS_ACTIVE, sdk.STATUS_ACTIVE]);
+  const p = await planCounty(sdk, c, bytes, att);
+  assert.deepEqual(p.steps.map((s) => s.op), ["migrate_root", "init_head", "mark_superseded"]);
+  assert.equal(p.noActiveRoot, undefined);
+});
+test("plan: newest epoch RETRACTED -> init_head (no active root) + supersede older ACTIVE, no migrate_root (D5)", async () => {
+  const { bytes, c } = county([sdk.STATUS_ACTIVE, sdk.STATUS_RETRACTED]);
+  const p = await planCounty(sdk, c, bytes, att);
+  assert.deepEqual(p.steps, [{ op: "init_head", epoch: 2 }, { op: "mark_superseded", epoch: 1, by: 2 }]);
+  assert.equal(p.ixs.length, 2); assert.equal(p.noActiveRoot, true); assert.equal(p.skip, undefined);
+});
+test("plan: retracted-latest county already done -> no steps; wrong head is refused", async () => {
+  let { bytes, c } = county([sdk.STATUS_SUPERSEDED, sdk.STATUS_RETRACTED], [2, 0]);
+  assert.deepEqual((await planCounty(sdk, c, bytes, att)).steps, []);
+  ({ bytes, c } = county([sdk.STATUS_SUPERSEDED, sdk.STATUS_RETRACTED], [2, 2]));
+  await assert.rejects(planCounty(sdk, c, bytes, att), /latest_active_epoch 2/);
+});
+test("plan: newest epoch SUPERSEDED is refused", async () => {
+  const { bytes, c } = county([sdk.STATUS_ACTIVE, sdk.STATUS_SUPERSEDED]);
+  await assert.rejects(planCounty(sdk, c, bytes, att), /expected ACTIVE or RETRACTED/);
+});

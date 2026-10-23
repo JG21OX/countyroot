@@ -93,8 +93,12 @@ try {
       assert.deepEqual(sdk.verifyManifest(fs.readFileSync(path.join(mdir, mf)), e2).problems, []);
       log(`checked ${c.label}: e2 migrated (256 B), e1 SUPERSEDED, fetchLatest -> e2, verifyManifest OK`);
     } else {
-      assert.equal(e2i.data.length, 99); assert.equal(latest, null); assert.equal(e1.status, sdk.STATUS_ACTIVE);
-      log(`checked ${c.label}: latest epoch retracted -> skipped, no head, e1 left as-is (see report)`);
+      // D5: retracted newest epoch -> head(latest 2, active 0), e1 SUPERSEDED by 2, e2 untouched
+      assert.equal(e2i.data.length, 99, "retracted root is not migrated"); assert.equal(sdk.decodeCountyRoot(e2i.data).status, sdk.STATUS_RETRACTED);
+      assert.equal(e1.status, sdk.STATUS_SUPERSEDED);
+      assert.equal(latest.head.latestEpoch, 2); assert.equal(latest.head.latestActiveEpoch, 0);
+      assert.equal(latest.epoch, 0); assert.equal(latest.root, null);
+      log(`checked ${c.label}: latest epoch retracted -> head latest=2 active=0, e1 SUPERSEDED, e2 left RETRACTED (99 B), fetchLatest -> no active root`);
     }
   }
   console.log("REHEARSAL OK"); code = 0;
