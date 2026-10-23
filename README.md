@@ -16,12 +16,12 @@ One account per county (FIPS) per epoch holds a 32-byte merkle root. The parcel 
 ## Status
 
 Solana Fall School Demo Day — 16 October 2026.
-Live on Devnet: 212 counties across 41 states. See https://countyroot.com for the full list.
+Live on Devnet: 212 counties across 41 states, 53 million+ parcels. See https://countyroot.com for the full list.
 Maintainer: JG21OX.
 
 ## License
 
-Source-available and free to use under the [PolyForm Shield License 1.0.0](LICENSE). Anyone, including businesses, may use, copy, and modify this software at no cost. You may not use it to build or sell a product or service that competes with CountyRoot. The SDK in [`countyroot/sdk`](countyroot/sdk) is the exception: it is MIT-licensed, so anyone can use it to verify CountyRoot data.
+Source-available and free to use under the [PolyForm Shield License 1.0.0](LICENSE). Anyone, including businesses, may use, copy, and modify this software at no cost. You may not use it to build or sell a product or service that competes with CountyRoot. The SDK in [`countyroot/sdk`](countyroot/sdk), published on npm as [`@countyroot/sdk`](https://www.npmjs.com/package/@countyroot/sdk), is under the same license and is free for anyone to use to verify CountyRoot data.
 
 Public extracts remain the counties’. This repo is the fingerprint software, not the official roll.
 
