@@ -21,10 +21,15 @@ export interface County {
 export interface CountyRootAccount {
   fips: number; epoch: number; nParcels: bigint; merkleRoot: string; schema: string;
   status: number; postedAt: number; bump: number; version: number; slot?: number;
+  /** v2 (version >= 2, 256-byte) accounts only. */
+  manifestSha256?: string; sourceSha256?: string; packetSha256?: string; dataAsOf?: number; fetchedAt?: number;
+  statusChangedAt?: number; supersededBy?: number; retractReason?: number; leafVersion?: number; migrated?: boolean;
 }
 export interface Anchor {
   kind: "onchain" | "onchain-missing" | "published"; ok: boolean; root?: string; nParcels?: number;
   status?: number; postedAt?: number; schema?: string; slot?: number; problems?: string[]; note?: string;
+  /** false when the epoch is SUPERSEDED (proof is historical, not current). */
+  current?: boolean; supersededBy?: number | null; retractReason?: number | null; manifestSha256?: string | null; warnings?: string[];
 }
 export interface ParcelRow {
   index: number; parcel_id: string; acres: string; lot_sqft: string; leaf?: string;
@@ -81,4 +86,5 @@ export async function verifyParcel(county: string | number | County, parcelId: s
 
 export const STATUS_ACTIVE = 1;
 export const STATUS_RETRACTED = 2;
+export const STATUS_SUPERSEDED = 3;
 export { core };

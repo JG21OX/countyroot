@@ -14,3 +14,7 @@ export function countyRootPda(fips: number, epoch: number, programId: PublicKey 
 export function pendingAuthorityPda(programId: PublicKey = PROGRAM_ID): PublicKey {
   return PublicKey.findProgramAddressSync([Buffer.from("pending_authority")], programId)[0];
 }
+export function countyHeadPda(fips: number, programId: PublicKey = PROGRAM_ID): PublicKey {
+  if (!Number.isInteger(fips) || fips < 0 || fips > 0xffffffff) throw new Error("fips must be a u32");
+  return PublicKey.findProgramAddressSync([Buffer.from("county_head"), u32le(fips)], programId)[0];
+}

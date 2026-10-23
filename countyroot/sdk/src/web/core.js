@@ -22,6 +22,7 @@ export const PROOF_FORMAT = 1;
 export const PROGRAM_ID = "7mi96nPvP6SB1eApAd7vN2uUEBDvNR9xVvLqPDt3uvwg";
 export const STATUS_ACTIVE = 1;
 export const STATUS_RETRACTED = 2;
+export const STATUS_SUPERSEDED = 3;
 
 const enc = new TextEncoder();
 const subtle = () => {
@@ -182,6 +183,13 @@ export async function decodeCountyRoot(data) {
     fips: dv.getUint32(8, true), epoch: dv.getUint32(12, true), nParcels: dv.getBigUint64(16, true),
     merkleRoot: toHex(data.subarray(24, 56)), schema: toHex(data.subarray(56, 88)), status: data[88],
     postedAt: Number(dv.getBigInt64(89, true)), bump: data[97], version: data.length > 98 ? data[98] : 0,
+    ...(data.length >= 256 && data[98] >= 2 ? {
+      // v2 provenance tail (program 0.3): read by offset after the unchanged 98-byte body.
+      manifestSha256: toHex(data.subarray(99, 131)), sourceSha256: toHex(data.subarray(131, 163)), packetSha256: toHex(data.subarray(163, 195)),
+      dataAsOf: Number(dv.getBigInt64(195, true)), fetchedAt: Number(dv.getBigInt64(203, true)),
+      statusChangedAt: Number(dv.getBigInt64(219, true)), supersededBy: dv.getUint32(227, true), retractReason: data[231],
+      leafVersion: data[232], migrated: (data[233] & 1) === 1,
+    } : {}),
   };
 }
 
@@ -221,13 +229,18 @@ async function getAnchor(county, onchain, leafVersion) {
     else {
       const probs = [];
       if (acct.fips !== county.fips || acct.epoch !== county.epoch) probs.push(`on-chain account is fips ${acct.fips} epoch ${acct.epoch}`);
-      if (acct.status !== STATUS_ACTIVE) probs.push(acct.status === STATUS_RETRACTED ? "this epoch is RETRACTED on-chain" : `on-chain status ${acct.status}`);
+      const warnings = [];
+      // SUPERSEDED: still a valid historical proof, but not the county's current data.
+      if (acct.status === STATUS_SUPERSEDED) warnings.push(`not the latest epoch: superseded by epoch ${acct.supersededBy || "?"}`);
+      else if (acct.status !== STATUS_ACTIVE) probs.push(acct.status === STATUS_RETRACTED ? "this epoch is RETRACTED on-chain" : `on-chain status ${acct.status}`);
       // v2 roots carry schema = SCHEMA_V2; v1 proof files must never be checked against a v2 root or vice versa.
       if (leafVersion === 2 ? acct.schema !== SCHEMA_V2_HEX : acct.schema === SCHEMA_V2_HEX)
         probs.push(`the on-chain fingerprint format (schema ${acct.schema.slice(0, 12)}…) is not the v${leafVersion} format these proof files use`);
       if (acct.merkleRoot !== county.merkle_root) probs.push("on-chain root differs from the published fingerprint (the on-chain root is used)");
       anchor = { kind: "onchain", ok: probs.filter((p) => !p.startsWith("on-chain root differs")).length === 0, root: acct.merkleRoot,
-                 nParcels: Number(acct.nParcels), status: acct.status, postedAt: acct.postedAt, version: acct.version, schema: acct.schema, slot: acct.slot, problems: probs };
+                 nParcels: Number(acct.nParcels), status: acct.status, postedAt: acct.postedAt, version: acct.version, schema: acct.schema, slot: acct.slot, problems: probs,
+                 current: acct.status === STATUS_ACTIVE, supersededBy: acct.status === STATUS_SUPERSEDED ? (acct.supersededBy || null) : null,
+                 retractReason: acct.retractReason ?? null, manifestSha256: acct.manifestSha256 ?? null, warnings };
     }
   } catch (e) {
     anchor = { kind: "published", ok: true, root: county.merkle_root, nParcels: county.n_parcels, note: `on-chain check unavailable: ${e.message || e}` };

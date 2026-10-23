@@ -7,7 +7,24 @@ import { Connection, clusterApiUrl } from "@solana/web3.js";
 import { buildLevels, makeProof, packetLeaves, parsePacketCsv, verifyProof, Proof, leafHash } from "./merkle.js";
 import { fetchCountyRoot } from "./rpc.js";
 import { countyRootPda } from "./pda.js";
-import { STATUS_ACTIVE } from "./constants.js";
+import { STATUS_ACTIVE, STATUS_NAMES, STATUS_RETRACTED, STATUS_SUPERSEDED, REASON_NAMES } from "./constants.js";
+import type { CountyRoot } from "./accounts.js";
+
+export function statusText(acct: CountyRoot): string {
+  if (acct.status === STATUS_SUPERSEDED) return `SUPERSEDED by epoch ${acct.provenance?.supersededBy || "?"}`;
+  if (acct.status === STATUS_RETRACTED) return `RETRACTED${acct.provenance?.retractReason ? ` (${REASON_NAMES[acct.provenance.retractReason] ?? acct.provenance.retractReason})` : ""}`;
+  return STATUS_NAMES[acct.status] ?? `unknown status ${acct.status}`;
+}
+/** Retracted/unknown fails; superseded is a valid historical proof and only warns. */
+export function checkStatus(acct: CountyRoot, log: (s: string) => void): boolean {
+  if (acct.status === STATUS_ACTIVE) return true;
+  if (acct.status === STATUS_SUPERSEDED) {
+    log(`WARNING: not the latest epoch: superseded by epoch ${acct.provenance?.supersededBy || "?"} (proof is valid for this historical epoch only)`);
+    return true;
+  }
+  log(acct.status === STATUS_RETRACTED ? "FAIL: root is retracted" : `FAIL: unknown status ${acct.status}`);
+  return false;
+}
 import { verifyProofV2, SCHEMA_V1, SCHEMA_V2, ProofV2 } from "./leafv2.js";
 
 function args(argv: string[]) {
@@ -64,8 +81,8 @@ export async function main(argv: string[], log = console.log): Promise<number> {
     if (!acct) { log(`FAIL: no on-chain account ${countyRootPda(fips, epoch).toBase58()}`); return 1; }
     const onchain = acct.merkleRoot.toString("hex");
     const match = onchain === rootDoc.merkle_root && verifyProof(proof, acct.merkleRoot);
-    log(`${match ? "OK  " : "FAIL"} on-chain root ${onchain} (status ${acct.status === STATUS_ACTIVE ? "active" : "RETRACTED"}, version ${acct.version}, n_parcels ${acct.nParcels})`);
-    if (acct.status !== STATUS_ACTIVE) { log("FAIL: root is retracted"); ok = false; }
+    log(`${match ? "OK  " : "FAIL"} on-chain root ${onchain} (status ${statusText(acct)}, version ${acct.version}, n_parcels ${acct.nParcels})`);
+    if (!checkStatus(acct, log)) ok = false;
     if (acct.nParcels !== BigInt(proof.leafCount)) { log("FAIL: on-chain n_parcels differs from proof leafCount"); ok = false; }
     ok &&= match;
   }
@@ -88,9 +105,9 @@ async function verifyV2(proof: ProofV2, rootDoc: any, fips: number, epoch: numbe
     if (!acct) { log(`FAIL: no on-chain account ${countyRootPda(fips, epoch).toBase58()}`); return 1; }
     const match = verifyProofV2(proof, acct.merkleRoot);
     const fmt = acct.schema.equals(SCHEMA_V2) ? "v2" : acct.schema.equals(SCHEMA_V1) ? "v1" : "unknown";
-    log(`${match ? "OK  " : "FAIL"} on-chain root ${acct.merkleRoot.toString("hex")} (format ${fmt}, status ${acct.status === STATUS_ACTIVE ? "active" : "RETRACTED"})`);
+    log(`${match ? "OK  " : "FAIL"} on-chain root ${acct.merkleRoot.toString("hex")} (format ${fmt}, status ${statusText(acct)})`);
     if (fmt !== "v2") { log("FAIL: the on-chain root is not a v2 fingerprint"); ok = false; }
-    if (acct.status !== STATUS_ACTIVE) { log("FAIL: root is retracted"); ok = false; }
+    if (!checkStatus(acct, log)) ok = false;
     if (acct.nParcels !== BigInt(proof.nLeaves)) { log("FAIL: on-chain n_parcels differs from proof nLeaves"); ok = false; }
     ok &&= match;
   }

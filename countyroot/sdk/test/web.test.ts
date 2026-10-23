@@ -51,3 +51,18 @@ test("readCountyRoot: rejects accounts not owned by CountyRoot", async () => {
   const a = await readCountyRoot(PDA, { fetch: fakeFetch() });
   assert.equal(a!.fips, FIPS); assert.equal(a!.merkleRoot, t.root.toString("hex"));
 });
+test("verifyParcel: superseded root still verifies as historical, with a warning", async () => {
+  const r = await verifyParcel(county, "A-100", { fetch: fakeFetch(3) });
+  assert.equal(r.verified, true); assert.equal(r.anchor.current, false);
+  assert.match(r.anchor.warnings![0], /not the latest epoch: superseded by epoch/);
+});
+test("web core decodes the v2 tail of a real 256-byte account", async () => {
+  const fs = await import("node:fs"); const path = await import("node:path"); const { fileURLToPath } = await import("node:url");
+  const fx = JSON.parse(fs.readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), "../../test/fixtures/v2.json"), "utf8"));
+  const s = await core.decodeCountyRoot(new Uint8Array(Buffer.from(fx.superseded, "base64")));
+  assert.equal(s.status, 3); assert.equal(s.supersededBy, 2); assert.equal(s.version, 2); assert.equal(s.migrated, false);
+  const m = await core.decodeCountyRoot(new Uint8Array(Buffer.from(fx.migrated, "base64")));
+  assert.equal(m.migrated, true); assert.equal(m.sourceSha256, "00".repeat(32));
+  const l = await core.decodeCountyRoot(new Uint8Array(Buffer.from(fx.legacy99, "base64")));
+  assert.equal(l.manifestSha256, undefined); assert.equal(l.version, 1);
+});
