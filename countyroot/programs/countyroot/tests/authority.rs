@@ -1,5 +1,6 @@
 //! Two-step config authority rotation. Build first:
 //!   cargo build-sbf --arch v0   (here and in test-programs/cpi_signer)
+mod common;
 use anchor_lang::{prelude::{AccountMeta, Pubkey}, AnchorDeserialize, Discriminator, InstructionData, ToAccountMetas};
 use base64::Engine;
 use countyroot::{AuthorityChanged, AuthorityProposalCancelled, AuthorityProposed};
@@ -79,16 +80,15 @@ impl E {
         Pubkey::find_program_address(&[b"county_root", &fips.to_le_bytes(), &1u32.to_le_bytes()], &countyroot::ID).0
     }
     fn post_and_retract(&mut self, fips: u32) {
-        let (a, c) = (self.att.insecure_clone(), self.config);
-        self.tx(&a, countyroot::instruction::PostRoot { fips, epoch: 1, n_parcels: 1, merkle_root: [1u8; 32], schema: [0u8; 32] }.data(),
-            countyroot::accounts::PostRoot { config: c, county_root: Self::cr(fips), attestor: a.pubkey(), system_program: Pubkey::default() }.to_account_metas(None)).unwrap();
-        self.tx(&a, countyroot::instruction::RetractRoot {}.data(),
-            countyroot::accounts::RetractRoot { config: c, county_root: Self::cr(fips), attestor: a.pubkey() }.to_account_metas(None)).unwrap();
+        let a = self.att.insecure_clone();
+        let (d, m) = common::post_v2(a.pubkey(), 1000 + fips, 1, None, [1u8; 32], common::prov(1));
+        self.tx(&a, d, m).unwrap();
+        let (d, m) = common::retract_v2(a.pubkey(), 1000 + fips, 1, countyroot::REASON_OTHER);
+        self.tx(&a, d, m).unwrap();
     }
     fn close(&mut self, k: &Keypair, fips: u32) -> R {
-        let c = self.config;
-        self.tx(k, countyroot::instruction::CloseRoot {}.data(),
-            countyroot::accounts::CloseRoot { config: c, county_root: Self::cr(fips), authority: k.pubkey() }.to_account_metas(None))
+        let (d, m) = common::close(k.pubkey(), 1000 + fips, 1);
+        self.tx(k, d, m)
     }
     fn authority(&self) -> Pubkey { Pubkey::try_from(&self.svm.get_account(&self.config).unwrap().data[8..40]).unwrap() }
     fn pending_exists(&self) -> bool { self.svm.get_account(&self.pending).map_or(false, |a| a.lamports > 0) }

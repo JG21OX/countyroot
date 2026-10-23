@@ -1,4 +1,5 @@
 //! set_paused tests: run `cargo build-sbf --arch v0` first, then `cargo test`.
+mod common;
 use anchor_lang::{prelude::Pubkey, AnchorDeserialize, Discriminator, InstructionData, ToAccountMetas};
 use base64::Engine;
 use countyroot::PauseChanged;
@@ -55,24 +56,25 @@ impl E {
             countyroot::accounts::SetPaused { config: c, authority: k.pubkey() }.to_account_metas(None))
     }
     fn post(&mut self, fips: u32) -> Result<Vec<String>, String> {
-        let (a, c) = (self.att.insecure_clone(), self.config);
-        self.tx(&a, countyroot::instruction::PostRoot { fips, epoch: 1, n_parcels: 1, merkle_root: [1u8; 32], schema: [0u8; 32] }.data(),
-            countyroot::accounts::PostRoot { config: c, county_root: cr(fips, 1), attestor: a.pubkey(), system_program: Pubkey::default() }.to_account_metas(None))
+        let a = self.att.insecure_clone();
+        let (d, m) = common::post_v2(a.pubkey(), 1000 + fips, 1, None, [1u8; 32], common::prov(1));
+        self.tx(&a, d, m)
     }
+    /// update_root is deprecated; the equivalent write is posting epoch 2 (supersedes epoch 1).
     fn update(&mut self, fips: u32) -> Result<Vec<String>, String> {
-        let (a, c) = (self.att.insecure_clone(), self.config);
-        self.tx(&a, countyroot::instruction::UpdateRoot { n_parcels: 2, merkle_root: [2u8; 32], schema: [0u8; 32] }.data(),
-            countyroot::accounts::UpdateRoot { config: c, county_root: cr(fips, 1), attestor: a.pubkey() }.to_account_metas(None))
+        let a = self.att.insecure_clone();
+        let (d, m) = common::post_v2(a.pubkey(), 1000 + fips, 2, Some(1), [2u8; 32], common::prov(2));
+        self.tx(&a, d, m)
     }
     fn retract(&mut self, fips: u32) -> Result<Vec<String>, String> {
-        let (a, c) = (self.att.insecure_clone(), self.config);
-        self.tx(&a, countyroot::instruction::RetractRoot {}.data(),
-            countyroot::accounts::RetractRoot { config: c, county_root: cr(fips, 1), attestor: a.pubkey() }.to_account_metas(None))
+        let a = self.att.insecure_clone();
+        let (d, m) = common::retract_v2(a.pubkey(), 1000 + fips, 1, countyroot::REASON_OTHER);
+        self.tx(&a, d, m)
     }
     fn close(&mut self, fips: u32) -> Result<Vec<String>, String> {
-        let (a, c) = (self.auth.insecure_clone(), self.config);
-        self.tx(&a, countyroot::instruction::CloseRoot {}.data(),
-            countyroot::accounts::CloseRoot { config: c, county_root: cr(fips, 1), authority: a.pubkey() }.to_account_metas(None))
+        let a = self.auth.insecure_clone();
+        let (d, m) = common::close(a.pubkey(), 1000 + fips, 1);
+        self.tx(&a, d, m)
     }
     fn paused_flag(&self) -> bool { self.svm.get_account(&self.config).unwrap().data[72] == 1 }
 }

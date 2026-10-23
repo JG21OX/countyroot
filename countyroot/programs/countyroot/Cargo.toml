@@ -20,6 +20,8 @@ idl-build = ["anchor-lang/idl-build"]
 anchor-debug = []
 custom-heap = []
 custom-panic = []
+# Devnet build: enables the one-time migration instructions and test FIPS 90000-99999.
+devnet = []
 
 
 [dependencies]

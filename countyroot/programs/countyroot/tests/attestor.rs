@@ -1,4 +1,5 @@
 //! set_attestor tests: run `cargo build-sbf --arch v0` first, then `cargo test`.
+mod common;
 use anchor_lang::{prelude::{AccountMeta, Pubkey}, AnchorDeserialize, Discriminator, InstructionData, ToAccountMetas};
 use base64::Engine;
 use countyroot::AttestorChanged;
@@ -58,19 +59,17 @@ impl E {
             countyroot::accounts::SetPaused { config: c, authority: a.pubkey() }.to_account_metas(None))
     }
     fn post(&mut self, k: &Keypair, fips: u32) -> R {
-        let c = self.config;
-        self.tx(k, countyroot::instruction::PostRoot { fips, epoch: 1, n_parcels: 1, merkle_root: [1u8; 32], schema: [0u8; 32] }.data(),
-            countyroot::accounts::PostRoot { config: c, county_root: cr(fips), attestor: k.pubkey(), system_program: Pubkey::default() }.to_account_metas(None))
+        let (d, m) = common::post_v2(k.pubkey(), 1000 + fips, 1, None, [1u8; 32], common::prov(1));
+        self.tx(k, d, m)
     }
+    /// update_root is deprecated; the attestor-gated "change" is now posting epoch 2 (supersedes 1).
     fn update(&mut self, k: &Keypair, fips: u32) -> R {
-        let c = self.config;
-        self.tx(k, countyroot::instruction::UpdateRoot { n_parcels: 2, merkle_root: [2u8; 32], schema: [0u8; 32] }.data(),
-            countyroot::accounts::UpdateRoot { config: c, county_root: cr(fips), attestor: k.pubkey() }.to_account_metas(None))
+        let (d, m) = common::post_v2(k.pubkey(), 1000 + fips, 2, Some(1), [2u8; 32], common::prov(2));
+        self.tx(k, d, m)
     }
     fn retract(&mut self, k: &Keypair, fips: u32) -> R {
-        let c = self.config;
-        self.tx(k, countyroot::instruction::RetractRoot {}.data(),
-            countyroot::accounts::RetractRoot { config: c, county_root: cr(fips), attestor: k.pubkey() }.to_account_metas(None))
+        let (d, m) = common::retract_v2(k.pubkey(), 1000 + fips, 1, countyroot::REASON_OTHER);
+        self.tx(k, d, m)
     }
     fn attestor(&self) -> Pubkey {
         Pubkey::try_from(&self.svm.get_account(&self.config).unwrap().data[40..72]).unwrap()
