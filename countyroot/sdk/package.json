@@ -27,7 +27,7 @@
   "scripts": {
     "clean": "rm -rf dist",
     "build": "npm run clean && tsc -p . && node scripts/bundle.mjs",
-    "test": "npm run build && node --test dist/test/",
+    "test": "npm run build && node scripts/run-tests.mjs",
     "example": "node examples/verify-parcel.mjs",
     "prepublishOnly": "npm test && npm run check-pack",
     "check-pack": "node scripts/check-pack.mjs"
