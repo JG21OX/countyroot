@@ -40,6 +40,8 @@ const u32 = (x) => { const b = Buffer.alloc(4); b.writeUInt32LE(x); return b; };
 
 // packets: v1 epoch 1, v2 epoch 2 (same parcels), built offline like the real pipeline
 const v2dir = path.join(tmp, "v2"); const C = [];
+// B.ZZ carries a real-style " / City, ST" label (spaces, comma, slash) to exercise manifestFileName.
+const fullLabel = (l) => (l === "B.ZZ" ? "B.ZZ / Bee Town/Hive, ZZ" : l);
 for (const [label, fips, n, e2status] of [["A.ZZ", 99001, 9, 1], ["B.ZZ", 99002, 5, 1], ["C.ZZ", 99003, 12, 2]]) {
   const d = path.join(tmp, "v1", label); fs.mkdirSync(d, { recursive: true });
   const rows = Array.from({ length: n }, (_, i) => [`${label}-${i}`, (i / 4).toFixed(6), (i * 10890).toFixed(2)]);
@@ -47,7 +49,7 @@ for (const [label, fips, n, e2status] of [["A.ZZ", 99001, 9, 1], ["B.ZZ", 99002,
   const csv = path.join(d, `${label}.1.2026-10.csv`);
   fs.writeFileSync(csv, ["parcel_id,acres,lot_sqft,leaf", ...rows.map((r, i) => `${r.join(",")},${leaves[i].toString("hex")}`)].join("\n") + "\n");
   const v1root = sdk.merkleRoot(leaves).toString("hex");
-  fs.writeFileSync(csv.replace(/\.csv$/, ".root.json"), JSON.stringify({ label, fips, epoch: 1, n_parcels: n, merkle_root: v1root }));
+  fs.writeFileSync(csv.replace(/\.csv$/, ".root.json"), JSON.stringify({ label: fullLabel(label), fips, epoch: 1, n_parcels: n, merkle_root: v1root }));
   const s = await buildV2({ csvPath: csv, outDir: v2dir, offline: true });
   legacy({ fips, epoch: 1, n, root: v1root, schema: sdk.SCHEMA_V1, status: 1 });
   legacy({ fips, epoch: 2, n, root: s.v2_root, schema: sdk.SCHEMA_V2, status: e2status });
@@ -67,7 +69,7 @@ try {
   const mdir = path.join(tmp, "manifests"); fs.writeFileSync(path.join(tmp, "labels.txt"), C.map((c) => c.label).join("\n"));
   const run = async (argv) => { console.log(`$ migrate_v2.mjs ${argv.join(" ")}`); const r = await migrate(argv, { log }); return r; };
   const meta = path.join(tmp, "meta.json");
-  fs.writeFileSync(meta, JSON.stringify(Object.fromEntries(C.map((c) => [c.label, { county_label: `${c.label[0]} County, ZZ`, ...(c.label === "B.ZZ"
+  fs.writeFileSync(meta, JSON.stringify(Object.fromEntries(C.map((c) => [fullLabel(c.label), { county_label: `${c.label[0]} County, ZZ`, ...(c.label === "B.ZZ"
     ? { fetched_at: null, fetched_no_later_than: "2026-10-02T08:30:00Z", fetched_no_later_than_source: "git rehearsal adds post script [commit time]", fetched_on: "2026-10-01" }
     : { fetched_at: "2026-10-01T12:00:00Z" }), data_as_of: "2026-09-30T00:00:00Z", source_url: "https://example.gov/parcels.zip", source_format: "shapefile" }]))));
   fs.writeFileSync(path.join(tmp, "nometa.json"), "{}");
@@ -95,7 +97,7 @@ try {
       assert.equal(new Date(Number(e2.provenance.fetchedAt) * 1000).toISOString(), ub ? "2026-10-02T08:30:00.000Z" : "2026-10-01T12:00:00.000Z");
       if (ub) log(`checked ${c.label}: flags=3 (MIGRATED|FETCHED_AT_IS_UPPER_BOUND), fetched no later than 2026-10-02T08:30:00Z`); assert.equal(e1.status, sdk.STATUS_SUPERSEDED);
       assert.equal(latest.epoch, 2); assert.equal(latest.root.merkleRoot.toString("hex"), c.v2root);
-      const mf = fs.readdirSync(mdir).find((f) => f.startsWith(c.label + "."));
+      const mf = `${c.label}.${String(c.fips).padStart(5, "0")}.e2.manifest.json`; assert.ok(fs.existsSync(path.join(mdir, mf)), mf);
       assert.deepEqual(sdk.verifyManifest(fs.readFileSync(path.join(mdir, mf)), e2).problems, []);
       log(`checked ${c.label}: e2 migrated (256 B), e1 SUPERSEDED, fetchLatest -> e2, verifyManifest OK`);
     } else {

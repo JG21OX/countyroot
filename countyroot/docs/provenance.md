@@ -15,7 +15,7 @@ Program v2 records where each root came from and keeps a county's history explic
   - The CLI prints a warning and still passes.
   - The web verifier returns `current: false`.
   - `RETRACTED` or an unknown status fails.
-- **The manifest** `<label>.e<N>.manifest.json` is canonical JSON: keys sorted, no whitespace, trailing LF.
+- **The manifest** `<key>.<fips5>.e<N>.manifest.json` (key = the county part of the label before " / ", with anything outside `[A-Za-z0-9._-]` replaced by `_`; e.g. `Adams.CO / Aurora` fips 8001 -> `Adams.CO.08001.e2.manifest.json`; `manifests` refuses duplicate names or FIPS, and `run` matches files by FIPS) is canonical JSON: keys sorted, no whitespace, trailing LF.
   - It holds county-level metadata only. The key allow-list is `MANIFEST_KEYS` in the SDK.
   - It has no parcel rows, owner names or site addresses, and nothing is hashed from them.
   - Check it with `verifyManifest(bytes, account)`.

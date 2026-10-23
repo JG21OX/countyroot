@@ -2,7 +2,7 @@
 // Mainnet never runs this: the mainnet build rejects migrate_root/init_head/mark_superseded (DevnetOnly).
 //
 //   1. node scripts/migrate_v2.mjs manifests --batch <labels.txt|all> --dir <v2 dir> --out <manifest dir>
-//        Writes <label>.e<N>.manifest.json (canonical bytes) for each county's latest epoch. Offline.
+//        Writes <key>.<fips5>.e<N>.manifest.json (canonical bytes; see manifestFileName) for each county's latest epoch. Offline.
 //   2. node scripts/migrate_v2.mjs run --manifests <manifest dir> [--state migrate_state.jsonl] [--send]
 //        options: --keypair <path> (default $COUNTYROOT_ATTESTOR_KEYPAIR, else ~/.config/solana/id.json)
 //                 --cluster devnet|localnet|<url> (default devnet; mainnet is refused)  --dry-run (default)
@@ -72,6 +72,17 @@ export function piiGuard(sdk, m) {
 //  Unknown fields stay null: nothing is invented for a migrated root. With no fetched_at but a
 //  fetched_no_later_than bound, fetched_at = the bound and fetched_at_is_upper_bound = true (the on-chain
 //  FLAG_FETCHED_AT_IS_UPPER_BOUND); fetched_at_source and the day-only fetched_on go in the manifest.
+/** File-safe manifest name. County labels carry " / City" (spaces, commas, slashes), so the name is built from
+ *  the county part with everything outside [A-Za-z0-9._-] replaced by "_", plus the zero-padded FIPS (the PDA
+ *  seed, unique per county) and the epoch: "Adams.CO / Aurora" fips 8001 e2 -> Adams.CO.08001.e2.manifest.json. */
+export function manifestFileName(label, fips, epoch) {
+  if (!Number.isInteger(fips) || fips < 1 || fips > 99999) throw new VerifyError(`bad fips ${fips} for ${JSON.stringify(label)}`);
+  if (!Number.isInteger(epoch) || epoch < 0) throw new VerifyError(`bad epoch ${epoch} for ${JSON.stringify(label)}`);
+  const key = String(label ?? "").split(" / ")[0].replace(/[^A-Za-z0-9._-]+/g, "_").replace(/^[._]+|[._]+$/g, "") || "county";
+  return `${key}.${String(fips).padStart(5, "0")}.e${epoch}.manifest.json`;
+}
+export const SAFE_FILE_NAME = /^[A-Za-z0-9._-]+$/;
+
 export function buildManifest(sdk, rootPath, { builderCommit = null, meta = {} } = {}) {
   const raw = JSON.parse(fs.readFileSync(rootPath, "utf8"));
   const doc = { ...raw, ...(meta[raw.label] ?? {}) };
@@ -198,9 +209,18 @@ export async function main(argv, { log = console.log, connection, signer: inject
     if (a.cmd === "manifests") {
       if (!a.batch || !a.dir || !a.out) throw new SetupError("manifests needs --batch, --dir and --out");
       fs.mkdirSync(expand(a.out), { recursive: true });
-      for (const r of resolveBatch(expand(a.batch), expand(a.dir))) {
-        const { label, bytes, manifest } = buildManifest(sdk, r, { builderCommit: a.builderCommit, meta: a.meta ? JSON.parse(fs.readFileSync(expand(a.meta), "utf8")) : {} });
-        const f = path.join(expand(a.out), `${label}.e${manifest.epoch}.manifest.json`);
+      const meta = a.meta ? JSON.parse(fs.readFileSync(expand(a.meta), "utf8")) : {};
+      const built = resolveBatch(expand(a.batch), expand(a.dir)).map((r) => buildManifest(sdk, r, { builderCommit: a.builderCommit, meta }));
+      const seen = new Map(), seenFips = new Map();
+      for (const { label, manifest } of built) {
+        const name = manifestFileName(label, manifest.fips, manifest.epoch);
+        if (!SAFE_FILE_NAME.test(name)) throw new VerifyError(`unsafe manifest file name ${JSON.stringify(name)}`);
+        if (seen.has(name.toLowerCase())) throw new VerifyError(`${JSON.stringify(label)} and ${JSON.stringify(seen.get(name.toLowerCase()))} map to the same file ${name}`);
+        if (seenFips.has(manifest.fips)) throw new VerifyError(`${JSON.stringify(label)} and ${JSON.stringify(seenFips.get(manifest.fips))} share fips ${manifest.fips}`);
+        seen.set(name.toLowerCase(), label); seenFips.set(manifest.fips, label);
+      }
+      for (const { label, bytes, manifest } of built) {
+        const f = path.join(expand(a.out), manifestFileName(label, manifest.fips, manifest.epoch));
         fs.writeFileSync(f, bytes);
         log(`wrote ${f}  sha256 ${sdk.manifestSha256(bytes).toString("hex")}`);
       }
@@ -223,6 +243,16 @@ export async function main(argv, { log = console.log, connection, signer: inject
     log(`${a.send ? "SEND" : "DRY RUN"}  cluster ${a.cluster}  attestor ${signer.toBase58()}${kp ? "" : " (public key only)"}`);
 
     const files = fs.readdirSync(expand(a.manifests)).filter((f) => f.endsWith(".manifest.json")).sort();
+    // Find manifests the way `manifests` names them: the name must be file-safe and end in .<fips5>.e<epoch>.manifest.json
+    // matching its contents; the run is keyed by fips, never by label.
+    const byFips = new Map();
+    for (const f of files) {
+      const m = JSON.parse(fs.readFileSync(path.join(expand(a.manifests), f), "utf8"));
+      if (!SAFE_FILE_NAME.test(f) || !f.endsWith(`.${String(m.fips).padStart(5, "0")}.e${m.epoch}.manifest.json`))
+        throw new VerifyError(`${f}: file name does not match its manifest (fips ${m.fips}, epoch ${m.epoch}); rerun manifests`);
+      if (byFips.has(m.fips)) throw new VerifyError(`${f} and ${byFips.get(m.fips)} are both for fips ${m.fips}`);
+      byFips.set(m.fips, f);
+    }
     const plans = [];
     for (const f of files) {
       const p = await planCounty(sdk, conn, fs.readFileSync(path.join(expand(a.manifests), f)), signer);
@@ -247,7 +277,7 @@ export async function main(argv, { log = console.log, connection, signer: inject
       const sig = await conn.sendRawTransaction(tx.serialize(), { preflightCommitment: "confirmed" });
       const c = await conn.confirmTransaction({ signature: sig, blockhash, lastValidBlockHeight }, "confirmed");
       if (c.value.err) throw new VerifyError(`fips ${p.fips}: transaction ${sig} failed: ${JSON.stringify(c.value.err)}`);
-      const again = await planCounty(sdk, conn, fs.readFileSync(path.join(expand(a.manifests), files.find((f) => f.includes(`.e${p.epoch}.`) && JSON.parse(fs.readFileSync(path.join(expand(a.manifests), f))).fips === p.fips))), signer);
+      const again = await planCounty(sdk, conn, fs.readFileSync(path.join(expand(a.manifests), byFips.get(p.fips))), signer);
       if (a.state) fs.appendFileSync(expand(a.state), JSON.stringify({ status: again.steps.length ? "incomplete" : "migrated", fips: p.fips, epoch: p.epoch, signature: sig, steps: p.steps.map((s) => s.op) }) + "\n");
       log(`migrated fips ${p.fips}: ${sig}`);
       if (again.steps.length) throw new VerifyError(`fips ${p.fips}: read-back still shows missing steps`);

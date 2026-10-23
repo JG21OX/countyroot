@@ -2,7 +2,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { loadSdk } from "./verify.mjs";
-import { piiGuard, main, migrateRootIx } from "./migrate_v2.mjs";
+import { piiGuard, main, migrateRootIx, manifestFileName, SAFE_FILE_NAME } from "./migrate_v2.mjs";
+import os from "node:os";
+import path from "node:path";
 import fs from "node:fs";
 
 const sdk = await loadSdk();
@@ -99,4 +101,31 @@ test("every real meta bound passes piiGuard", { skip: !fs.existsSync("/workspace
     piiGuard(sdk, { ...good(), fetched_at: m.fetched_no_later_than, fetched_at_is_upper_bound: true, fetched_at_source: m.fetched_no_later_than_source, fetched_on: m.fetched_on ?? null }); n++;
   }
   assert.equal(n, 163);
+});
+
+test("manifestFileName: file-safe, keyed by fips", () => {
+  assert.equal(manifestFileName("Adams.CO / Aurora", 8001, 2), "Adams.CO.08001.e2.manifest.json");
+  assert.equal(manifestFileName("FortBend.TX / Sugar Land/Houston", 48157, 2), "FortBend.TX.48157.e2.manifest.json");
+  assert.equal(manifestFileName("DistrictOfColumbia.DC / Washington, DC", 11001, 2), "DistrictOfColumbia.DC.11001.e2.manifest.json");
+  assert.equal(manifestFileName("../../etc/x y", 1, 0), "etc_x_y.00001.e0.manifest.json");
+  for (const l of ["a/b", "a b", "a,b", "..", "", null, "ä/ö"]) assert.match(manifestFileName(l, 12345, 2), SAFE_FILE_NAME);
+  assert.notEqual(manifestFileName("X / A", 1, 2), manifestFileName("X / B", 2, 2));
+  assert.throws(() => manifestFileName("X", 0, 2), /fips/); assert.throws(() => manifestFileName("X", 1.5, 2), /fips/);
+});
+const ALL = "/workspace/countyroot/stage/v2-all", META = "/workspace/countyroot/meta/meta.json";
+test("manifests --batch all on the 212 real counties: every label has ' / ', every file name is safe and distinct",
+  { skip: !(fs.existsSync(ALL) && fs.existsSync(META)) }, async () => {
+  const meta = JSON.parse(fs.readFileSync(META, "utf8"));
+  assert.equal(Object.keys(meta).length, 212);
+  assert.equal(Object.keys(meta).filter((l) => /[^A-Za-z0-9._-]/.test(l)).length, 212);
+  const out = fs.mkdtempSync(path.join(os.tmpdir(), "cr-manifests-")), log = [];
+  assert.equal(await main(["manifests", "--batch", "all", "--dir", ALL, "--out", out, "--meta", META], { log: (s) => log.push(s) }), 0, log.join("\n"));
+  const files = fs.readdirSync(out);
+  assert.equal(files.length, 212); assert.equal(new Set(files.map((f) => f.toLowerCase())).size, 212);
+  for (const f of files) {
+    assert.match(f, SAFE_FILE_NAME);
+    const m = JSON.parse(fs.readFileSync(path.join(out, f), "utf8"));
+    assert.ok(f.endsWith(`.${String(m.fips).padStart(5, "0")}.e${m.epoch}.manifest.json`), f);
+  }
+  fs.rmSync(out, { recursive: true });
 });
