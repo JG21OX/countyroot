@@ -66,3 +66,15 @@ test("web core decodes the v2 tail of a real 256-byte account", async () => {
   const l = await core.decodeCountyRoot(new Uint8Array(Buffer.from(fx.legacy99, "base64")));
   assert.equal(l.manifestSha256, undefined); assert.equal(l.version, 1);
 });
+test("web core: fetchedAtIsUpperBound and 'fetched no later than' text", async () => {
+  const fs = await import("node:fs"); const path = await import("node:path"); const { fileURLToPath } = await import("node:url");
+  const fx = JSON.parse(fs.readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), "../../test/fixtures/v2.json"), "utf8"));
+  const raw = Buffer.from(fx.migrated, "base64");
+  const m = await core.decodeCountyRoot(new Uint8Array(raw));
+  assert.equal(m.fetchedAtIsUpperBound, false); assert.match(core.fetchedAtText(m)!, /^fetched \d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/);
+  const f = Buffer.from(raw); f[233] |= 2;
+  const u = await core.decodeCountyRoot(new Uint8Array(f));
+  assert.equal(u.fetchedAtIsUpperBound, true); assert.equal(u.migrated, true);
+  assert.equal(core.fetchedAtText(u), core.fetchedAtText(m)!.replace("fetched ", "fetched no later than "));
+  assert.equal(core.fetchedAtText(await core.decodeCountyRoot(new Uint8Array(Buffer.from(fx.legacy99, "base64")))), null);
+});

@@ -1,6 +1,6 @@
 import { PublicKey } from "@solana/web3.js";
 import { discriminator, Reader } from "./borsh.js";
-import { COUNTY_ROOT_V0_LEN, COUNTY_ROOT_V2_LEN, FLAG_MIGRATED, OFF } from "./constants.js";
+import { COUNTY_ROOT_V0_LEN, COUNTY_ROOT_V2_LEN, FLAG_FETCHED_AT_IS_UPPER_BOUND, FLAG_MIGRATED, OFF } from "./constants.js";
 
 export interface Config { authority: PublicKey; attestor: PublicKey; paused: boolean; bump: number; }
 export interface CountyRoot {
@@ -28,6 +28,8 @@ export interface Provenance {
   leafVersion: number;
   flags: number;
   migrated: boolean;
+  /** fetchedAt is only a "fetched no later than" bound (no recorded download time). */
+  fetchedAtIsUpperBound: boolean;
 }
 export interface CountyHead { fips: number; latestEpoch: number; latestActiveEpoch: number; nEpochs: number; updatedAt: bigint; bump: number; }
 export interface PendingAuthority { proposed: PublicKey; proposer: PublicKey; bump: number; }
@@ -68,6 +70,7 @@ export function decodeCountyRoot(data: Buffer | Uint8Array): CountyRoot {
       postedSlot: b.readBigUInt64LE(OFF.POSTED_SLOT), statusChangedAt: b.readBigInt64LE(OFF.STATUS_CHANGED_AT),
       supersededBy: b.readUInt32LE(OFF.SUPERSEDED_BY), retractReason: b[OFF.RETRACT_REASON],
       leafVersion: b[OFF.LEAF_VERSION], flags, migrated: (flags & FLAG_MIGRATED) !== 0,
+      fetchedAtIsUpperBound: (flags & FLAG_FETCHED_AT_IS_UPPER_BOUND) !== 0,
     };
   }
   return v;

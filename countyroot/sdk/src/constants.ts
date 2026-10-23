@@ -20,6 +20,8 @@ export const OFF = {
   POSTED_SLOT: 211, STATUS_CHANGED_AT: 219, SUPERSEDED_BY: 227, RETRACT_REASON: 231, LEAF_VERSION: 232, FLAGS: 233, RESERVED: 234,
 } as const;
 export const FLAG_MIGRATED = 1;
+/** fetched_at is a "fetched no later than" bound (commit or post time), not a recorded download time. */
+export const FLAG_FETCHED_AT_IS_UPPER_BOUND = 2;
 export const REASON = { NONE: 0, SUPERSEDED: 1, PII: 2, SOURCE_ERROR: 3, DUPLICATE: 4, BUILD_ERROR: 5, OTHER: 255 } as const;
 export const REASON_NAMES: Record<number, string> = { 0: "none", 1: "superseded", 2: "pii", 3: "source_error", 4: "duplicate", 5: "build_error", 255: "other" };
 export const STATUS_NAMES: Record<number, string> = { 1: "active", 2: "retracted", 3: "superseded" };

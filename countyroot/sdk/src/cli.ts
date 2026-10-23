@@ -10,6 +10,13 @@ import { countyRootPda } from "./pda.js";
 import { STATUS_ACTIVE, STATUS_NAMES, STATUS_RETRACTED, STATUS_SUPERSEDED, REASON_NAMES } from "./constants.js";
 import type { CountyRoot } from "./accounts.js";
 
+/** "fetched <iso>" or "fetched no later than <iso>" (flags.fetched_at_is_upper_bound); "" without provenance. */
+export function fetchedText(acct: CountyRoot): string {
+  const p = acct.provenance;
+  if (!p || p.fetchedAt === 0n) return "";
+  const t = new Date(Number(p.fetchedAt) * 1000).toISOString().replace(/\.\d{3}Z$/, "Z");
+  return p.fetchedAtIsUpperBound ? `fetched no later than ${t}` : `fetched ${t}`;
+}
 export function statusText(acct: CountyRoot): string {
   if (acct.status === STATUS_SUPERSEDED) return `SUPERSEDED by epoch ${acct.provenance?.supersededBy || "?"}`;
   if (acct.status === STATUS_RETRACTED) return `RETRACTED${acct.provenance?.retractReason ? ` (${REASON_NAMES[acct.provenance.retractReason] ?? acct.provenance.retractReason})` : ""}`;
@@ -82,6 +89,7 @@ export async function main(argv: string[], log = console.log): Promise<number> {
     const onchain = acct.merkleRoot.toString("hex");
     const match = onchain === rootDoc.merkle_root && verifyProof(proof, acct.merkleRoot);
     log(`${match ? "OK  " : "FAIL"} on-chain root ${onchain} (status ${statusText(acct)}, version ${acct.version}, n_parcels ${acct.nParcels})`);
+    if (fetchedText(acct)) log(`     source data ${fetchedText(acct)}`);
     if (!checkStatus(acct, log)) ok = false;
     if (acct.nParcels !== BigInt(proof.leafCount)) { log("FAIL: on-chain n_parcels differs from proof leafCount"); ok = false; }
     ok &&= match;
@@ -106,6 +114,7 @@ async function verifyV2(proof: ProofV2, rootDoc: any, fips: number, epoch: numbe
     const match = verifyProofV2(proof, acct.merkleRoot);
     const fmt = acct.schema.equals(SCHEMA_V2) ? "v2" : acct.schema.equals(SCHEMA_V1) ? "v1" : "unknown";
     log(`${match ? "OK  " : "FAIL"} on-chain root ${acct.merkleRoot.toString("hex")} (format ${fmt}, status ${statusText(acct)})`);
+    if (fetchedText(acct)) log(`     source data ${fetchedText(acct)}`);
     if (fmt !== "v2") { log("FAIL: the on-chain root is not a v2 fingerprint"); ok = false; }
     if (!checkStatus(acct, log)) ok = false;
     if (acct.nParcels !== BigInt(proof.nLeaves)) { log("FAIL: on-chain n_parcels differs from proof nLeaves"); ok = false; }

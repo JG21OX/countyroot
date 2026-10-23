@@ -23,6 +23,12 @@ export const PROGRAM_ID = "7mi96nPvP6SB1eApAd7vN2uUEBDvNR9xVvLqPDt3uvwg";
 export const STATUS_ACTIVE = 1;
 export const STATUS_RETRACTED = 2;
 export const STATUS_SUPERSEDED = 3;
+/** "fetched 2026-10-14T20:07:44Z" or, when flags.fetched_at_is_upper_bound, "fetched no later than ...". null without provenance. */
+export function fetchedAtText(acct) {
+  if (!acct || !acct.fetchedAt) return null;
+  const t = new Date(acct.fetchedAt * 1000).toISOString().replace(/\.\d{3}Z$/, "Z");
+  return acct.fetchedAtIsUpperBound ? `fetched no later than ${t}` : `fetched ${t}`;
+}
 
 const enc = new TextEncoder();
 const subtle = () => {
@@ -188,7 +194,7 @@ export async function decodeCountyRoot(data) {
       manifestSha256: toHex(data.subarray(99, 131)), sourceSha256: toHex(data.subarray(131, 163)), packetSha256: toHex(data.subarray(163, 195)),
       dataAsOf: Number(dv.getBigInt64(195, true)), fetchedAt: Number(dv.getBigInt64(203, true)),
       statusChangedAt: Number(dv.getBigInt64(219, true)), supersededBy: dv.getUint32(227, true), retractReason: data[231],
-      leafVersion: data[232], migrated: (data[233] & 1) === 1,
+      leafVersion: data[232], migrated: (data[233] & 1) === 1, fetchedAtIsUpperBound: (data[233] & 2) === 2,
     } : {}),
   };
 }

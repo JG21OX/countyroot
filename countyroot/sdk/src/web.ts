@@ -24,6 +24,7 @@ export interface CountyRootAccount {
   /** v2 (version >= 2, 256-byte) accounts only. */
   manifestSha256?: string; sourceSha256?: string; packetSha256?: string; dataAsOf?: number; fetchedAt?: number;
   statusChangedAt?: number; supersededBy?: number; retractReason?: number; leafVersion?: number; migrated?: boolean;
+  /** fetchedAt is only a "fetched no later than" bound. */ fetchedAtIsUpperBound?: boolean;
 }
 export interface Anchor {
   kind: "onchain" | "onchain-missing" | "published"; ok: boolean; root?: string; nParcels?: number;
@@ -88,3 +89,5 @@ export const STATUS_ACTIVE = 1;
 export const STATUS_RETRACTED = 2;
 export const STATUS_SUPERSEDED = 3;
 export { core };
+/** Display text for the fetch time: "fetched <iso>" or "fetched no later than <iso>". */
+export const fetchedAtText: (acct: CountyRootAccount | null) => string | null = core.fetchedAtText;

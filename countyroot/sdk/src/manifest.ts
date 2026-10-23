@@ -10,6 +10,13 @@ export const MANIFEST_KEYS = [
   "source_record_count", "data_as_of", "builder_commit", "recipe", "leaf_version", "schema_sha256", "packet_sha256",
   "pii_scan", "n_parcels", "merkle_root", "supersedes_epoch", "reason",
 ] as const;
+/**
+ * Optional keys (migrated roots with no recorded download time):
+ * - fetched_at_is_upper_bound: true when fetched_at is a "fetched no later than" bound (must match the on-chain flag);
+ * - fetched_at_source: where fetched_at came from (a commit or post record), text;
+ * - fetched_on: "YYYY-MM-DD" from a day-only batch note, or null.
+ */
+export const MANIFEST_OPTIONAL_KEYS = ["fetched_at_is_upper_bound", "fetched_at_source", "fetched_on"] as const;
 
 function canon(v: any): any {
   if (Array.isArray(v)) return v.map(canon);
@@ -46,7 +53,8 @@ export function verifyManifest(bytes: Buffer | Uint8Array, root: CountyRoot): Ma
   try { m = JSON.parse(buf.toString("utf8")); } catch { problems.push("manifest is not JSON"); }
   if (m) {
     if (!canonicalManifest(m).equals(buf)) problems.push("manifest is not in canonical form");
-    const extra = Object.keys(m).filter((k) => !(MANIFEST_KEYS as readonly string[]).includes(k));
+    const allowed = [...MANIFEST_KEYS, ...MANIFEST_OPTIONAL_KEYS] as readonly string[];
+    const extra = Object.keys(m).filter((k) => !allowed.includes(k));
     if (extra.length) problems.push(`unexpected manifest keys: ${extra.join(", ")}`);
     const eq = (name: string, a: any, b: any) => { if (a !== b) problems.push(`${name}: manifest ${a} != on-chain ${b}`); };
     eq("fips", m.fips, root.fips);
@@ -58,6 +66,7 @@ export function verifyManifest(bytes: Buffer | Uint8Array, root: CountyRoot): Ma
     eq("source_sha256", m.source_sha256 ?? null, zero ? null : p.sourceSha256.toString("hex"));
     eq("leaf_version", m.leaf_version, p.leafVersion);
     try { eq("fetched_at", isoToUnix(m.fetched_at).toString(), p.fetchedAt.toString()); } catch (e: any) { problems.push(e.message); }
+    eq("fetched_at_is_upper_bound", m.fetched_at_is_upper_bound === true, p.fetchedAtIsUpperBound);
     try { eq("data_as_of", isoToUnix(m.data_as_of).toString(), p.dataAsOf.toString()); } catch (e: any) { problems.push(e.message); }
   }
   return { ok: problems.length === 0, problems, manifest: m };

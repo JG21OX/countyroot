@@ -12,7 +12,8 @@ import {
   verifyManifest, canonicalManifest, manifestSha256, STATUS_ACTIVE, STATUS_RETRACTED, STATUS_SUPERSEDED, REASON, PROGRAM_ID,
   type CountyRoot,
 } from "../src/index.js";
-import { checkStatus, statusText } from "../src/cli.js";
+import { checkStatus, statusText, fetchedText } from "../src/cli.js";
+import { FLAG_FETCHED_AT_IS_UPPER_BOUND } from "../src/index.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const fx = JSON.parse(fs.readFileSync(path.join(here, "../../test/fixtures/v2.json"), "utf8"));
@@ -163,4 +164,35 @@ test("cli: SUPERSEDED warns but passes; RETRACTED and unknown fail", () => {
   assert.equal(statusText(decodeCountyRoot(B("retracted"))), "RETRACTED (pii)");
   const odd = { ...decodeCountyRoot(B("active")), status: 9 };
   assert.equal(checkStatus(odd, (x) => out.push(x)), false);
+});
+
+/** The real migrated account with flags.fetched_at_is_upper_bound set (byte 233 |= 2). */
+function flagged(extra: Record<string, any> = {}) {
+  const acct = Buffer.from(B("migrated")); acct[233] |= FLAG_FETCHED_AT_IS_UPPER_BOUND;
+  const root = decodeCountyRoot(acct);
+  const bytes = canonicalManifest(manifestFor(root, extra));
+  manifestSha256(bytes).copy(acct, 99);
+  return { bytes, root: decodeCountyRoot(acct) };
+}
+test("fetchedAtIsUpperBound: decoded from flags; unflagged roots read false", () => {
+  assert.equal(decodeCountyRoot(B("migrated")).provenance!.fetchedAtIsUpperBound, false);
+  assert.equal(decodeCountyRoot(B("active")).provenance!.fetchedAtIsUpperBound, false);
+  const r = flagged().root;
+  assert.equal(r.provenance!.fetchedAtIsUpperBound, true); assert.equal(r.provenance!.migrated, true);
+});
+test("verifyManifest: fetched_at_is_upper_bound must match the on-chain flag", () => {
+  const ok = flagged({ fetched_at_is_upper_bound: true, fetched_at_source: "git abc1234 adds post_x.mjs [commit time]", fetched_on: "2026-10-14" });
+  assert.deepEqual(verifyManifest(ok.bytes, ok.root).problems, []);
+  const missing = flagged();
+  assert.match(verifyManifest(missing.bytes, missing.root).problems.join(), /fetched_at_is_upper_bound: manifest false != on-chain true/);
+  const unflagged = pair("migrated", { fetched_at_is_upper_bound: true, fetched_at_source: "x" });
+  assert.match(verifyManifest(unflagged.bytes, unflagged.root).problems.join(), /fetched_at_is_upper_bound: manifest true != on-chain false/);
+  const exact = pair("migrated", { fetched_at_is_upper_bound: false, fetched_at_source: "tar member mtime", fetched_on: null });
+  assert.deepEqual(verifyManifest(exact.bytes, exact.root).problems, []);
+});
+test("cli: shows 'fetched no later than' for an upper-bound fetched_at", () => {
+  const r = flagged().root, t = new Date(Number(r.provenance!.fetchedAt) * 1000).toISOString().replace(/\.\d{3}Z$/, "Z");
+  assert.equal(fetchedText(r), `fetched no later than ${t}`);
+  assert.equal(fetchedText(decodeCountyRoot(B("migrated"))), `fetched ${t}`);
+  assert.equal(fetchedText(decodeCountyRoot(B("legacy99"))), "");
 });
