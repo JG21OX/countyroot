@@ -134,7 +134,10 @@ pub fn init_head_ix(att: Pubkey, fips: u32, latest_epoch: u32) -> (Vec<u8>, Vec<
      countyroot::accounts::InitHead { config: config(), county_head: head(fips), latest_root: cr(fips, latest_epoch), attestor: att, system_program: Pubkey::default() }.to_account_metas(None))
 }
 pub fn migrate_ix(att: Pubkey, fips: u32, epoch: u32, p: Provenance) -> (Vec<u8>, Vec<AccountMeta>) {
-    (countyroot::instruction::MigrateRoot { prov: p }.data(),
+    migrate_ix_ub(att, fips, epoch, p, false)
+}
+pub fn migrate_ix_ub(att: Pubkey, fips: u32, epoch: u32, p: Provenance, ub: bool) -> (Vec<u8>, Vec<AccountMeta>) {
+    (countyroot::instruction::MigrateRoot { prov: p, fetched_at_is_upper_bound: ub }.data(),
      countyroot::accounts::MigrateRoot { config: config(), county_root: cr(fips, epoch), attestor: att, system_program: Pubkey::default() }.to_account_metas(None))
 }
 pub fn supersede_ix(att: Pubkey, fips: u32, epoch: u32, by: u32) -> (Vec<u8>, Vec<AccountMeta>) {

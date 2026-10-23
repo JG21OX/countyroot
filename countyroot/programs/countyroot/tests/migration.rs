@@ -15,6 +15,7 @@ fn migrated(h: &mut H, fips: u32, epoch: u32, len: usize) -> Vec<u8> {
     let mut p = prov(7); p.source_sha256 = [0; 32]; // D3: unknown source hash allowed for migrated roots
     let logs = h.att_send(migrate_ix(att, fips, epoch, p)).unwrap();
     let ev: RootMigrated = event(&logs);
+    assert!(!ev.fetched_at_is_upper_bound);
     assert_eq!((ev.fips, ev.epoch, ev.old_len, ev.source_sha256), (fips, epoch, len as u32, [0; 32]));
     let d = h.data(&cr(fips, epoch));
     assert_eq!(&d[..98], &before[..98], "original body must be byte-identical");
@@ -146,4 +147,20 @@ fn init_head_rejects_superseded_latest() {
     let mut h = H::new(SO_DEVNET);
     h.inject_legacy(F, 1, 99, STATUS_SUPERSEDED);
     err_has(h.att_send(init_head_ix(h.att.pubkey(), F, 1)), "NotActive");
+}
+
+#[test]
+fn migrate_with_fetched_at_upper_bound_sets_flag() {
+    let mut h = H::new(SO_DEVNET);
+    h.inject_legacy(F, 1, 99, STATUS_ACTIVE);
+    let att = h.att.pubkey();
+    let mut p = prov(7); p.source_sha256 = [0; 32];
+    let fa = p.fetched_at;
+    let logs = h.att_send(migrate_ix_ub(att, F, 1, p, true)).unwrap();
+    let ev: RootMigrated = event(&logs);
+    assert!(ev.fetched_at_is_upper_bound);
+    assert_eq!(ev.fetched_at, fa);
+    let d = h.data(&cr(F, 1));
+    assert_eq!(d[OFF_FLAGS], FLAG_MIGRATED | FLAG_FETCHED_AT_IS_UPPER_BOUND);
+    assert_eq!(i64::from_le_bytes(d[OFF_FETCHED_AT..OFF_FETCHED_AT + 8].try_into().unwrap()), fa);
 }

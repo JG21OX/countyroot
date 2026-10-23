@@ -246,8 +246,10 @@ pub mod countyroot {
 
     /// DEVNET MIGRATION ONLY. Grow a legacy 98/99-byte ACTIVE root to the 256-byte v2
     /// layout and record its provenance (flags.migrated = 1, posted_slot = 0 = unknown).
+    /// `fetched_at_is_upper_bound`: no recorded download time exists, so `prov.fetched_at` is the
+    /// "fetched no later than" time (commit or post time); sets FLAG_FETCHED_AT_IS_UPPER_BOUND.
     /// Bytes 0..98 (the original account body) are never touched.
-    pub fn migrate_root(ctx: Context<MigrateRoot>, prov: Provenance) -> Result<()> {
+    pub fn migrate_root(ctx: Context<MigrateRoot>, prov: Provenance, fetched_at_is_upper_bound: bool) -> Result<()> {
         require!(cfg!(feature = "devnet"), CountyError::DevnetOnly);
         require!(!ctx.accounts.config.paused, CountyError::Paused);
         require!(
@@ -288,7 +290,8 @@ pub mod countyroot {
             for b in d[COUNTY_ROOT_V0_LEN..].iter_mut() { *b = 0; }
             d[OFF_VERSION] = COUNTY_ROOT_VERSION;
             write_provenance(&mut d, &prov);
-            d[OFF_FLAGS] = FLAG_MIGRATED;
+            d[OFF_FLAGS] = FLAG_MIGRATED
+                | if fetched_at_is_upper_bound { FLAG_FETCHED_AT_IS_UPPER_BOUND } else { 0 };
         }
         emit!(RootMigrated {
             county_root: info.key(),
@@ -301,6 +304,7 @@ pub mod countyroot {
             data_as_of: prov.data_as_of,
             fetched_at: prov.fetched_at,
             leaf_version: prov.leaf_version,
+            fetched_at_is_upper_bound,
             attestor: ctx.accounts.attestor.key(),
             slot: clock.slot,
             ts: clock.unix_timestamp,
@@ -474,6 +478,8 @@ pub const OFF_LEAF_VERSION: usize = 232;
 pub const OFF_FLAGS: usize = 233;
 pub const OFF_RESERVED: usize = 234;
 pub const FLAG_MIGRATED: u8 = 1;
+/// fetched_at holds a "fetched no later than" bound (commit or post time), not a recorded download time.
+pub const FLAG_FETCHED_AT_IS_UPPER_BOUND: u8 = 2;
 
 pub const REASON_NONE: u8 = 0;
 pub const REASON_SUPERSEDED: u8 = 1;
@@ -647,6 +653,7 @@ pub struct RootMigrated {
     pub data_as_of: i64,
     pub fetched_at: i64,
     pub leaf_version: u8,
+    pub fetched_at_is_upper_bound: bool,
     pub attestor: Pubkey,
     pub slot: u64,
     pub ts: i64,

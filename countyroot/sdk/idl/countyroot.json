@@ -729,6 +729,8 @@
       "docs": [
         "DEVNET MIGRATION ONLY. Grow a legacy 98/99-byte ACTIVE root to the 256-byte v2",
         "layout and record its provenance (flags.migrated = 1, posted_slot = 0 = unknown).",
+        "`fetched_at_is_upper_bound`: no recorded download time exists, so `prov.fetched_at` is the",
+        "\"fetched no later than\" time (commit or post time); sets FLAG_FETCHED_AT_IS_UPPER_BOUND.",
         "Bytes 0..98 (the original account body) are never touched."
       ],
       "discriminator": [
@@ -782,6 +784,10 @@
               "name": "Provenance"
             }
           }
+        },
+        {
+          "name": "fetched_at_is_upper_bound",
+          "type": "bool"
         }
       ]
     },
@@ -2193,6 +2199,10 @@
           {
             "name": "leaf_version",
             "type": "u8"
+          },
+          {
+            "name": "fetched_at_is_upper_bound",
+            "type": "bool"
           },
           {
             "name": "attestor",
