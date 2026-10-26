@@ -48,6 +48,22 @@ parcel ID, and the page says so.
 Re-uploads: `node scripts/proof_upload_list.mjs --dir <new stage> --previous <old stage or manifest.txt>` lists only
 new or changed files. Index files get a 5-minute cache, other files 1 day.
 
+## Program v2: head, history, provenance (`scripts/site_counties.mjs`)
+
+The site build runs `node scripts/site_counties.mjs --in counties.json --out counties.json --proofs <v1 dir> --proofs <v2 dir> [--manifests <dir>]`
+(read-only Devnet reads) to add, per county: `head` (CountyHead PDA), `history` ([{epoch, pda, month, n_parcels, merkle_root,
+leaf_version, proofs, manifest}]) and `manifest` (current epoch's manifest file name). The browser can't derive PDAs, so they are baked in;
+trust still comes from the accounts (CountyRoot owner, discriminator, fips/epoch).
+
+The page then reads the head and every epoch's root in one `getMultipleAccounts` call and shows:
+- ACTIVE (current) epochs as before; a note if the head has a newer epoch than the site lists, and a red banner if the latest epoch was
+  retracted and the county has no active root (`latest_active_epoch == 0`).
+- SUPERSEDED epochs (`?e=N`, offered only when that epoch's proof files exist) in amber: a valid historical proof, not current data.
+- RETRACTED epochs in red with the reason; rows are never marked verified, and no "check this epoch" link is offered.
+- Provenance from the v2 tail: "fetched <t>" or "fetched no later than <t>" (flag bit 2), data as of, manifest/packet/source hashes,
+  migrated note. "Check the manifest" fetches `<packets>/manifests/<file>` and runs `verifyManifestBytes` (same checks as SDK
+  `verifyManifest`). `?m=1` runs it on load. Manifests must be uploaded to R2 under `manifests/` for this to pass.
+
 ## Trust model
 - **Proof files are untrusted.** The page recomputes the leaf from the row and hashes up to a root; any changed byte in
   a row, chunk or top file gives a different root and the check fails.
@@ -70,6 +86,10 @@ So the CSP adds `connect-src https://packets.countyroot.com https://api.devnet.s
 GET/HEAD CORS rule for countyroot.com (`r2-cors.json`). The Devnet RPC already sends CORS headers for countyroot.com.
 
 ## Tests
+
+`page_history.test.mjs`: head/status/provenance/manifest cases on the mock RPC; `COUNTYROOT_LIVE=1` adds read-only Devnet checks
+(Travis, Osage, tampered manifest, and a sample of current + superseded epochs across counties).
+
 - `node --test scripts/build_proofs.test.mjs` covers the builder/verifier against the SDK (every leaf for n = 1..70 across
   chunk sizes, duplicates, tampering, fallback, account decoding, the PII scan). Set
   `COUNTYROOT_PROOF_PACKETS=a.csv:b.csv` to check every row of real packets.

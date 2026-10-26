@@ -36,6 +36,9 @@
     code { font-size:12px; color:#c4c0d4; }
     ol.how { margin:8px 0 0 20px; font-size:14px; color:var(--mute); }
     .trust { margin-top:10px; }
+    ul.hist { margin:6px 0 0; padding-left:18px; font-size:13px; } ul.hist li[data-status="retracted"] { color:var(--bad); } ul.hist li[data-status="superseded"] { color:var(--amber); }
+    .result.prov dd { word-break:break-all; }
+    button.small { width:auto; padding:6px 10px; font-size:13px; }
     ul.sugg { list-style:none; display:flex; flex-wrap:wrap; gap:6px 14px; margin:8px 0 0; font-size:14px; }
     footer { color:var(--mute); font-size:13px; margin-top:36px; border-top:1px solid var(--line); padding-top:14px; }
   </style>
@@ -53,6 +56,8 @@
     <form id="f" autocomplete="off">
       <label for="county">County</label>
       <select id="county" required><option value="">Loading counties…</option></select>
+      <label for="epoch">Epoch (data release)</label>
+      <select id="epoch" disabled><option value="">latest</option></select>
       <label for="parcel">Parcel ID (case, spaces, dashes, dots and leading zeros are ignored)</label>
       <input id="parcel" required placeholder="e.g. 0240050817" spellcheck="false" />
       <p id="hint" class="note"></p>
@@ -65,9 +70,10 @@
     <ol class="how">
       <li>Your browser downloads a few small proof files for this county (about 100 KB or less each), not the whole parcel list.</li>
       <li>If the exact ID isn't in the county file, it tries the same ID without case, spaces, dashes, dots or leading zeros, then any lookup aliases the county has (for example Travis's TCAD Property ID). It always tells you which parcel ID it matched. Aliases only help find the parcel ID; they are not part of the fingerprint.</li>
-      <li>It recomputes the parcel's fingerprint (leaf) from the row: <code>sha256(parcel_id|acres|lot_sqft)</code>.</li>
-      <li>It hashes that leaf up the Merkle tree to a root, using the neighbouring fingerprints from the proof files.</li>
-      <li>It reads the county's root account from Solana Devnet (finalized) and checks it is CountyRoot's, active, for this county and epoch, and equal to the computed root.</li>
+      <li>It recomputes the parcel's fingerprint (leaf) from the exact row: a domain-separated SHA-256 (<code>countyroot/leaf/v2</code>) over the county FIPS code, the exact parcel ID, its repeat number (for an ID listed more than once) and the areas as whole numbers (micro-acres and hundredths of a square foot), so no rounding or text formatting is involved. Older epochs published before leaf format 2 use the v1 leaf <code>sha256(parcel_id|acres|lot_sqft)</code>; the page uses whichever format that epoch's proof files declare.</li>
+      <li>It hashes that leaf up the Merkle tree (leaves sorted by parcel ID) to a root that also binds the county, epoch and parcel count, using the neighbouring fingerprints from the proof files. For an ID that isn't in the file, the two neighbouring rows prove it is absent.</li>
+      <li>It reads the county's head account and root accounts from Solana Devnet (finalized), checks they are CountyRoot's and for this county and epoch, and compares the computed root. The head says which epoch is current. An <strong>active</strong> epoch is the county's current data; a <strong>superseded</strong> epoch is still a valid record of an earlier release; a <strong>retracted</strong> epoch must not be relied on, even when a row matches.</li>
+      <li>It shows where the data came from, as recorded on-chain: when the county file was fetched (“no later than” when only an upper bound is known), the county's own data date, and the hashes of the packet and the build manifest. “Check the manifest” downloads that epoch's manifest and confirms its hash and contents match the chain.</li>
     </ol>
     <p class="note trust">The proof files are not trusted: if any byte in them is wrong, the computed root won't match. If Solana can't be reached, the page compares with the fingerprint published on this site instead and tells you so; open the Explorer link to confirm it yourself. For a check that doesn't rely on this website, use the CountyRoot SDK's <code>countyroot verify</code> with the full parcel list.</p>
     <footer><a href="/">← All counties</a></footer>

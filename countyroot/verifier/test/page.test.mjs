@@ -36,7 +36,7 @@ test("Travis.TX: a parcel verifies against the root (mock RPC)", async () => {
 
 test("Travis.TX: live Devnet RPC (proxied same-origin) verifies against the real on-chain root", { skip: !LIVE }, async () => {
   reset(); state.rpc = "live"; const r = await verifyIn("Travis.TX", " 000000park ");
-  assert.equal(r.state, "verified", r.text); assert.equal(r.anchor, "onchain"); assert.match(r.rows[0].verdict, /Verified on-chain/); noCsp(r);
+  assert.equal(r.state, "verified", r.text); assert.match(r.anchor, /^onchain(-superseded)?$/); // the v1 site lists epochs that program v2 has since superseded assert.match(r.rows[0].verdict, /Verified on-chain/); noCsp(r);
 });
 
 test("MiamiDade.FL: a duplicated parcel ID returns every row, each verified (live RPC when available)", async () => {

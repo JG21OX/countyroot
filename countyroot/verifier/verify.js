@@ -1,5 +1,5 @@
 // countyroot.com/verify page logic. No third-party code; everything runs in the browser.
-import { verifyParcel, fetchCountyRoot, lookupKey } from "./cr-verify.js";
+import { verifyParcel, fetchCountyRoot, lookupKey, fetchHistory, describeStatus, fetchedAtText, verifyManifestBytes, STATUS_SUPERSEDED, STATUS_RETRACTED } from "./cr-verify.js";
 
 const $ = (id) => document.getElementById(id);
 const el = (tag, attrs = {}, ...kids) => {
@@ -12,6 +12,30 @@ const explorer = (addr, cluster) => `https://explorer.solana.com/address/${addr}
 const date = (ts) => (ts ? new Date(ts * 1000).toISOString().replace("T", " ").slice(0, 16) + " UTC" : "");
 
 let cfg, counties = [];
+const AUTO_MANIFEST = new URLSearchParams(location.search).get("m") === "1"; // ?m=1: check the manifest right away (read before run() rewrites the URL)
+
+/** The epochs of a county that have proof files: the current one first, then older ones (newest first). */
+function epochChoices(c) {
+  if (!c) return [];
+  const older = (c.history || []).filter((h) => h.epoch !== c.epoch && h.proofs).sort((a, b) => b.epoch - a.epoch);
+  return [{ epoch: c.epoch, current: true }, ...older];
+}
+function fillEpochs(want) {
+  const c = counties.find((x) => x.label === $("county").value), es = $("epoch");
+  if (!es) return;
+  es.textContent = "";
+  for (const h of epochChoices(c)) es.append(el("option", { value: String(h.epoch), textContent: h.current ? `epoch ${h.epoch} (latest on this site)` : `epoch ${h.epoch} · ${h.month} (earlier)` }));
+  es.disabled = es.options.length < 2;
+  if (want && [...es.options].some((o) => o.value === String(want))) es.value = String(want);
+}
+/** The county object for the chosen epoch (an older epoch takes its own month, PDA, root and leaf count). */
+function forEpoch(c, epoch) {
+  if (!epoch || epoch === c.epoch) return c;
+  const h = (c.history || []).find((x) => x.epoch === epoch && x.proofs);
+  if (!h) return c;
+  const { leaf_version, ...rest } = c;
+  return { ...rest, epoch: h.epoch, month: h.month, pda: h.pda, merkle_root: h.merkle_root, n_parcels: h.n_parcels, ...(h.leaf_version === 2 ? { leaf_version: 2 } : {}), manifest: h.manifest ?? null, historical: true };
+}
 async function getJson(url) { const r = await fetch(url, { cache: "no-cache" }); if (!r.ok) throw new Error(`${url}: HTTP ${r.status}`); return r.json(); }
 
 async function init() {
@@ -28,6 +52,8 @@ async function init() {
   }
   const q = new URLSearchParams(location.search);
   if (q.get("c")) sel.value = q.get("c");
+  sel.addEventListener("change", () => fillEpochs());
+  fillEpochs(q.get("e"));
   if (q.get("p")) $("parcel").value = q.get("p");
   $("go").disabled = false;
   $("f").addEventListener("submit", (e) => { e.preventDefault(); run(); });
@@ -53,16 +79,24 @@ function showAliasHint(c) {
 }
 
 async function run() {
-  const c = counties.find((x) => x.label === $("county").value), pid = $("parcel").value;
+  const base = counties.find((x) => x.label === $("county").value), pid = $("parcel").value;
+  const c = base && forEpoch(base, Number($("epoch")?.value) || base.epoch);
   const out = $("out"), status = $("status");
   out.textContent = ""; out.dataset.state = "running";
   if (!c || !lookupKey(pid)) { status.textContent = "Choose a county and enter a parcel ID."; out.dataset.state = "idle"; return; }
-  history.replaceState(null, "", `?c=${encodeURIComponent(c.label)}&p=${encodeURIComponent(pid.trim())}`);
+  history.replaceState(null, "", `?c=${encodeURIComponent(c.label)}${c.epoch !== base.epoch ? `&e=${c.epoch}` : ""}&p=${encodeURIComponent(pid.trim())}`);
   $("go").disabled = true; status.textContent = "Fetching proof files and the on-chain root…";
   const t0 = performance.now();
   try {
-    const res = await verifyParcel({ county: c, parcelId: pid, load: proofLoader(c), onchain: (cc) => fetchCountyRoot(cfg.rpc, cc.pda) });
+    // The county head says what is current; read it with every listed epoch's status in one call.
+    const hist = c.head ? fetchHistory(cfg.rpc, base).catch((e) => ({ error: e.message || String(e) })) : Promise.resolve(null);
+    let acct = null;
+    const res = await verifyParcel({ county: c, parcelId: pid, load: proofLoader(c), onchain: async (cc) => (acct = await fetchCountyRoot(cfg.rpc, cc.pda)) });
+    const h = await hist;
+    out.append(...headBanners(base, c, h));
     render(c, pid, res);
+    if (res.anchor.kind === "onchain" && acct) out.append(provenanceBox(c, acct));
+    if (h && !h.error) out.append(historyBox(base, c, h));
     status.textContent = `Done in ${((performance.now() - t0) / 1000).toFixed(1)} s.`;
   } catch (e) {
     out.dataset.state = e.notFound ? "unpublished" : "error";
@@ -75,13 +109,79 @@ async function run() {
 
 function anchorBanner(c, a) {
   const link = el("a", { href: explorer(c.pda, cfg.cluster), textContent: "Open the account on Solana Explorer", rel: "noopener", target: "_blank" });
+  if (a.kind === "onchain" && a.ok && !a.problems.length && a.status === STATUS_SUPERSEDED)
+    return el("div", { class: "banner amber", "data-anchor": "onchain-superseded" }, `Historical epoch: compared with the on-chain root (Solana ${cfg.cluster}, finalized), posted ${date(a.postedAt)}, ${a.nParcels.toLocaleString()} parcels. Epoch ${c.epoch} is SUPERSEDED${a.supersededBy ? ` by epoch ${a.supersededBy}` : ""}: a match shows the row was in that earlier epoch, not that it is in the county's current data. `, link);
   if (a.kind === "onchain" && a.ok && !a.problems.length)
     return el("div", { class: "banner ok", "data-anchor": "onchain" }, `Compared with the on-chain root (Solana ${cfg.cluster}, finalized): status active, posted ${date(a.postedAt)}, ${a.nParcels.toLocaleString()} parcels. `, link);
+  if (a.kind === "onchain" && a.status === STATUS_RETRACTED)
+    return el("div", { class: "banner bad", "data-anchor": "onchain-retracted" }, `Epoch ${c.epoch} is RETRACTED on-chain${a.retractReason ? ` (reason: ${({ 2: "personal information", 3: "source error", 4: "duplicate", 5: "build error", 255: "other" })[a.retractReason] ?? a.retractReason})` : ""}. Do not rely on it, even where a row's proof matches. ${a.problems.filter((p) => !/RETRACTED/.test(p)).join("; ")} `, link);
   if (a.kind === "onchain")
     return el("div", { class: `banner ${a.ok ? "amber" : "bad"}`, "data-anchor": "onchain-problem" }, `On-chain check: ${a.problems.join("; ")}. `, link);
   if (a.kind === "onchain-missing")
     return el("div", { class: "banner bad", "data-anchor": "onchain-missing" }, "No CountyRoot account was found on-chain for this county and epoch. ", ...(c.leaf_version === 2 ? [`Epoch ${c.epoch} is this county's new format-v2 fingerprint and may not be posted yet; until it is, this result is not anchored. Earlier epochs are listed on the `, el("a", { href: `/archive/${encodeURIComponent(c.label)}.html`, textContent: "archive page" }), ". "] : []), link);
   return el("div", { class: "banner amber", "data-anchor": "published" }, `Solana could not be reached (${a.note.replace(/^on-chain check unavailable: /, "")}). Compared with the fingerprint published on this site instead. Confirm the root yourself: `, link);
+}
+
+/** Banners from the county head: no active root (latest retracted), or a newer epoch than this site lists. */
+function headBanners(base, c, h) {
+  if (!h) return [];
+  if (h.error) return [el("div", { class: "banner amber", "data-head": "unavailable" }, `Could not read the county's history from Solana (${h.error}); the result below does not say whether epoch ${c.epoch} is still current.`)];
+  if (!h.head) return [el("div", { class: "banner amber", "data-head": "missing" }, "This county has no on-chain head account yet, so which epoch is current can't be confirmed on-chain.")];
+  const { latestEpoch, latestActiveEpoch } = h.head, out = [];
+  if (latestActiveEpoch === 0) out.push(el("div", { class: "banner bad", "data-head": "no-active" }, `${base.display} has no active root on-chain: its latest epoch (${latestEpoch}) was retracted and nothing replaces it yet. No epoch of this county is current.`));
+  else if (latestEpoch > base.epoch) out.push(el("div", { class: "banner amber", "data-head": "newer" }, `Solana has a newer epoch (${latestEpoch}) for ${base.display} than this site lists (${base.epoch}). The site will catch up; until then, the result below is for epoch ${c.epoch}.`));
+  else out.push(el("span", { hidden: true, "data-head": latestActiveEpoch === c.epoch ? "current" : "older" }));
+  return out;
+}
+
+const iso = (ts) => new Date(ts * 1000).toISOString().replace(/\.\d{3}Z$/, "Z").replace("T", " ").replace("Z", " UTC");
+/** Where the data came from (v2 accounts): fetch time ("no later than" when flagged), county date, manifest check. */
+function provenanceBox(c, a) {
+  const box = el("div", { class: "result prov", "data-provenance": a.manifestSha256 ? "v2" : "none" }, el("div", { class: "verdict small", textContent: "Where this data came from (on-chain)" }));
+  if (!a.manifestSha256) { box.append(el("p", { class: "note", textContent: `This account (layout version ${a.version}) has no provenance record.` })); return box; }
+  const dl = el("dl"), add = (k, v, attrs = {}) => dl.append(el("dt", { textContent: k }), el("dd", { textContent: v, ...attrs }));
+  const ft = fetchedAtText(a);
+  add("Fetched", ft ? (a.fetchedAtIsUpperBound ? `no later than ${iso(a.fetchedAt)}` : iso(a.fetchedAt)) : "not recorded", { "data-fetched": a.fetchedAtIsUpperBound ? "upper-bound" : "exact" });
+  if (a.fetchedAtIsUpperBound) add("", "The exact download time wasn't recorded, so this is the latest time the county file could have been fetched (from the build or post record).");
+  add("County data as of", a.dataAsOf ? iso(a.dataAsOf) : "the county doesn't publish an edit date");
+  add("Manifest sha256", a.manifestSha256);
+  add("Packet sha256", a.packetSha256);
+  add("Source sha256", /^0{64}$/.test(a.sourceSha256) ? "not recorded (raw download not archived)" : a.sourceSha256);
+  if (a.migrated) add("Note", "Provenance added after the original post (migrated root).");
+  box.append(dl);
+  if (c.manifest) {
+    const url = `${cfg.packets}/manifests/${c.manifest}`;
+    const res = el("p", { class: "note", "data-manifest-result": "" });
+    const btn = el("button", { type: "button", class: "small", textContent: "Check the manifest against the chain", "data-manifest": c.manifest });
+    btn.addEventListener("click", async () => {
+      btn.disabled = true; res.textContent = "Downloading the manifest…";
+      try {
+        const r = await fetch(url, { cache: "no-cache" });
+        if (!r.ok) throw new Error(r.status === 404 || r.status === 403 ? "the manifest isn't published yet" : `HTTP ${r.status}`);
+        const v = await verifyManifestBytes(new Uint8Array(await r.arrayBuffer()), a);
+        res.dataset.manifestResult = v.ok ? "ok" : "bad";
+        res.textContent = v.ok ? `✓ Manifest matches: its sha256 equals the on-chain manifest_sha256, and its county, epoch, parcel count, root, hashes and dates agree with the account. Source: ${v.manifest.source_url ?? "not recorded"}.` : `✗ Manifest does not match: ${v.problems.join("; ")}.`;
+      } catch (e) { res.dataset.manifestResult = "error"; res.textContent = `Could not check the manifest: ${e.message}.`; }
+      finally { btn.disabled = false; }
+    });
+    box.append(el("p", { class: "note" }, btn, " ", el("a", { href: url, textContent: "manifest file", rel: "noopener", target: "_blank" })), res);
+    if (AUTO_MANIFEST) btn.click();
+  }
+  return box;
+}
+
+/** Every epoch of the county with its on-chain status (append-only history). */
+function historyBox(base, c, h) {
+  const ul = el("ul", { class: "hist" });
+  for (const e of [...h.epochs].sort((x, y) => y.epoch - x.epoch)) {
+    const d = describeStatus(e.account, h.head);
+    const li = el("li", { "data-epoch": String(e.epoch), "data-status": d.state }, el("strong", { textContent: `Epoch ${e.epoch}` }), `${e.month ? ` · ${e.month}` : ""} · ${d.text}${e.epoch === c.epoch ? " ← this check" : ""} · `,
+      el("a", { href: explorer(e.pda, cfg.cluster), textContent: "Explorer", rel: "noopener", target: "_blank" }));
+    if (e.proofs && e.epoch !== c.epoch) li.append(" · ", el("a", { href: `?c=${encodeURIComponent(base.label)}${e.epoch !== base.epoch ? `&e=${e.epoch}` : ""}&p=${encodeURIComponent($("parcel").value.trim())}`, textContent: "check this epoch" }));
+    ul.append(li);
+  }
+  return el("div", { class: "result hist-box", "data-history": String(h.epochs.length) }, el("div", { class: "verdict small", textContent: `${base.display}: on-chain history` }),
+    el("p", { class: "note", textContent: "Every epoch stays on-chain. A newer epoch supersedes the older one; a retracted epoch should not be relied on." }), ul);
 }
 
 let lastIndex = null;

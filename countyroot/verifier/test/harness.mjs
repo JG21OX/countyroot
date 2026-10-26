@@ -31,7 +31,31 @@ export async function startHarness({ pub, proofDirs, chrome: CHROME = process.en
   const countiesDoc = JSON.parse(fs.readFileSync(path.join(pub, "verify/counties.json"), "utf8"));
   const counties = countiesDoc.counties;
   if (patch) await patch(counties);
-  const state = { rpc: "mock", tamper: null, requests: [], packets: "/packets", v2schema: SCHEMA_V2, missing: new Set() };
+  const state = { rpc: "mock", tamper: null, requests: [], packets: "/packets", v2schema: SCHEMA_V2, missing: new Set(), head: null, epochStatus: null };
+  const HEAD_DISC = crypto.createHash("sha256").update("account:CountyHead").digest().subarray(0, 8);
+  // Mock CountyHead: latest = the listed epoch unless state.head(c) returns { latest, latestActive }.
+  function headB64(c) {
+    const h = state.head?.(c) ?? { latest: c.epoch, latestActive: c.epoch }, d = Buffer.alloc(48); HEAD_DISC.copy(d, 0);
+    d.writeUInt32LE(c.fips, 8); d.writeUInt32LE(h.latest, 12); d.writeUInt32LE(h.latestActive, 16); d.writeUInt32LE(h.latest, 20); d.writeBigInt64LE(1792800000n, 24); d[32] = 255;
+    return d.toString("base64");
+  }
+  // Mock roots for any listed epoch (current or history): status from state.epochStatus(c, epoch), else current 1 / older 3.
+  function rootFor(pda) {
+    for (const c of counties) {
+      if (c.pda === pda) return { c, e: c, epoch: c.epoch };
+      const h = (c.history || []).find((x) => x.pda === pda);
+      if (h) return { c, e: { ...c, ...h, leaf_version: h.leaf_version }, epoch: h.epoch };
+    }
+    return null;
+  }
+  function mockValue(pda) {
+    const hc = counties.find((x) => x.head === pda);
+    if (hc) return state.missing.has(hc.label) ? null : { owner: "7mi96nPvP6SB1eApAd7vN2uUEBDvNR9xVvLqPDt3uvwg", data: [headB64(hc), "base64"], lamports: 1, executable: false };
+    const r = rootFor(pda);
+    if (!r || state.missing.has(r.c.label)) return null;
+    const st = state.rpc === "retracted" && r.epoch === r.c.epoch ? 2 : state.epochStatus?.(r.c, r.epoch) ?? (r.epoch === r.c.epoch ? 1 : 3);
+    return { owner: "7mi96nPvP6SB1eApAd7vN2uUEBDvNR9xVvLqPDt3uvwg", data: [accountB64(r.e, st), "base64"], lamports: 1, executable: false };
+  }
   function accountB64(c, status = 1) {
     const d = Buffer.alloc(99); Buffer.from(discriminatorHex, "hex").copy(d, 0);
     d.writeUInt32LE(c.fips, 8); d.writeUInt32LE(c.epoch, 12); d.writeBigUInt64LE(BigInt(c.n_parcels), 16);
@@ -45,9 +69,9 @@ export async function startHarness({ pub, proofDirs, chrome: CHROME = process.en
       const r = await fetch("https://api.devnet.solana.com", { method: "POST", headers: { "content-type": "application/json" }, body });
       return [r.status, await r.json()];
     }
-    const c = counties.find((x) => x.pda === pda);
-    if (!c || state.missing.has(c.label)) return [200, { jsonrpc: "2.0", id: j.id, result: { context: { slot: 1 }, value: null } }];
-    return [200, { jsonrpc: "2.0", id: j.id, result: { context: { slot: 1 }, value: { owner: "7mi96nPvP6SB1eApAd7vN2uUEBDvNR9xVvLqPDt3uvwg", data: [accountB64(c, state.rpc === "retracted" ? 2 : 1), "base64"], lamports: 1, executable: false } } }];
+    if (j.method === "getMultipleAccounts" && state.failMulti) return [500, { error: "multi down" }];
+    if (j.method === "getMultipleAccounts") return [200, { jsonrpc: "2.0", id: j.id, result: { context: { slot: 1 }, value: pda.map(mockValue) } }];
+    return [200, { jsonrpc: "2.0", id: j.id, result: { context: { slot: 1 }, value: mockValue(pda) } }];
   }
   const server = http.createServer(async (req, res) => {
     const hdrs = headersFor(), url = new URL(req.url, "http://x");
@@ -93,30 +117,44 @@ export async function startHarness({ pub, proofDirs, chrome: CHROME = process.en
     const evalJs = async (expr) => (await send("Runtime.evaluate", { expression: expr, returnByValue: true })).result?.result?.value;
     return { evalJs, logs, close: async () => { ws.close(); await fetch(`http://127.0.0.1:${port}/json/close/${t.id}`); } };
   }
-  async function verifyIn(label, parcel, { timeout = 60000 } = {}) {
-    const p = await openPage(`${ORIGIN}/verify/?c=${encodeURIComponent(label)}&p=${encodeURIComponent(parcel)}`);
+  async function verifyIn(label, parcel, { timeout = 60000, query = "" } = {}) {
+    const p = await openPage(`${ORIGIN}/verify/?c=${encodeURIComponent(label)}&p=${encodeURIComponent(parcel)}${query}`);
     const t0 = Date.now(); let st;
     while (Date.now() - t0 < timeout) {
       st = await p.evalJs("document.getElementById('out') && document.getElementById('out').dataset.state");
       if (st && st !== "idle" && st !== "running") break;
       await new Promise((r) => setTimeout(r, 150));
     }
+    if (/[?&]m=1/.test(query)) while (Date.now() - t0 < timeout) {
+      const m = await p.evalJs("(document.querySelector('[data-manifest-result]')||{dataset:{}}).dataset.manifestResult");
+      if (m === undefined || (m && m !== "")) break;
+      await new Promise((r) => setTimeout(r, 150));
+    }
     const info = await p.evalJs(`JSON.stringify({ state: document.getElementById('out').dataset.state,
       anchor: (document.querySelector('[data-anchor]')||{}).dataset?.anchor || null,
-      rows: [...document.querySelectorAll('.result')].map(e => ({ ok: e.dataset.ok, row: e.dataset.row, verdict: e.querySelector('.verdict').textContent })),
+      rows: [...document.querySelectorAll('.result:not(.prov):not(.hist-box)')].map(e => ({ ok: e.dataset.ok, row: e.dataset.row, verdict: e.querySelector('.verdict').textContent })),
       status: document.getElementById('status').textContent,
       resolved: (document.querySelector('[data-resolved]')||{dataset:{}}).dataset.resolved || null,
       matched: (document.querySelector('[data-resolved]')||{dataset:{}}).dataset.matched || null,
       parcels: [...document.querySelectorAll('.result dd:first-of-type')].map(e => e.textContent),
       suggestions: [...document.querySelectorAll('[data-sugg]')].map(e => ({ id: e.dataset.sugg, href: e.getAttribute('href') })),
       absence: (document.querySelector('[data-absence]')||{dataset:{}}).dataset.absence || null,
-      hint: (document.getElementById('hint')||{}).textContent || '', text: document.getElementById('out').innerText.slice(0, 600) })`);
+      hint: (document.getElementById('hint')||{}).textContent || '',
+      head: (document.querySelector('[data-head]')||{dataset:{}}).dataset.head || null,
+      provenance: (document.querySelector('[data-provenance]')||{dataset:{}}).dataset.provenance || null,
+      fetched: (document.querySelector('[data-fetched]')||{dataset:{}}).dataset.fetched || null,
+      fetchedText: (document.querySelector('[data-fetched]')||{}).textContent || null,
+      manifest: (document.querySelector('[data-manifest-result]')||{dataset:{}}).dataset.manifestResult ?? null,
+      manifestText: (document.querySelector('[data-manifest-result]')||{}).textContent || null,
+      history: [...document.querySelectorAll('[data-history] li')].map(e => ({ epoch: +e.dataset.epoch, status: e.dataset.status, check: !!e.querySelector('a[href^="?"]'), text: e.textContent })),
+      epochs: [...document.querySelectorAll('#epoch option')].map(o => o.value),
+      banners: [...document.querySelectorAll('#out .banner')].map(e => e.textContent), text: document.getElementById('out').innerText.slice(0, 600) })`);
     const r = { ...JSON.parse(info), ms: Date.now() - t0, logs: p.logs.slice() };
     await p.close();
     return r;
   }
   const noCsp = (r) => assert.ok(!r.logs.some((l) => /Content Security Policy|Refused to/i.test(l)), "CSP violations: " + r.logs.join(" | "));
-  const reset = () => { state.rpc = "mock"; state.tamper = null; state.packets = "/packets"; state.v2schema = SCHEMA_V2; state.missing = new Set(); };
+  const reset = () => { state.rpc = "mock"; state.tamper = null; state.packets = "/packets"; state.v2schema = SCHEMA_V2; state.missing = new Set(); state.head = null; state.epochStatus = null; state.failMulti = false; };
   test.after(async () => {
     const exited = new Promise((r) => chrome.once("exit", r)); chrome.kill(); await Promise.race([exited, new Promise((r) => setTimeout(r, 5000))]);
     server.close(); try { fs.rmSync(profile, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }); } catch {}

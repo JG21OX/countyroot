@@ -20,6 +20,13 @@ export const PROOF_FORMAT = 1;
 export const PROGRAM_ID = "7mi96nPvP6SB1eApAd7vN2uUEBDvNR9xVvLqPDt3uvwg";
 export const STATUS_ACTIVE = 1;
 export const STATUS_RETRACTED = 2;
+export const STATUS_SUPERSEDED = 3;
+/** "fetched 2026-10-14T20:07:44Z" or, when flags.fetched_at_is_upper_bound, "fetched no later than ...". null without provenance. */
+export function fetchedAtText(acct) {
+  if (!acct || !acct.fetchedAt) return null;
+  const t = new Date(acct.fetchedAt * 1000).toISOString().replace(/\.\d{3}Z$/, "Z");
+  return acct.fetchedAtIsUpperBound ? `fetched no later than ${t}` : `fetched ${t}`;
+}
 
 const enc = new TextEncoder();
 const subtle = () => {
@@ -180,6 +187,13 @@ export async function decodeCountyRoot(data) {
     fips: dv.getUint32(8, true), epoch: dv.getUint32(12, true), nParcels: dv.getBigUint64(16, true),
     merkleRoot: toHex(data.subarray(24, 56)), schema: toHex(data.subarray(56, 88)), status: data[88],
     postedAt: Number(dv.getBigInt64(89, true)), bump: data[97], version: data.length > 98 ? data[98] : 0,
+    ...(data.length >= 256 && data[98] >= 2 ? {
+      // v2 provenance tail (program 0.3): read by offset after the unchanged 98-byte body.
+      manifestSha256: toHex(data.subarray(99, 131)), sourceSha256: toHex(data.subarray(131, 163)), packetSha256: toHex(data.subarray(163, 195)),
+      dataAsOf: Number(dv.getBigInt64(195, true)), fetchedAt: Number(dv.getBigInt64(203, true)),
+      statusChangedAt: Number(dv.getBigInt64(219, true)), supersededBy: dv.getUint32(227, true), retractReason: data[231],
+      leafVersion: data[232], migrated: (data[233] & 1) === 1, fetchedAtIsUpperBound: (data[233] & 2) === 2,
+    } : {}),
   };
 }
 
@@ -219,13 +233,18 @@ async function getAnchor(county, onchain, leafVersion) {
     else {
       const probs = [];
       if (acct.fips !== county.fips || acct.epoch !== county.epoch) probs.push(`on-chain account is fips ${acct.fips} epoch ${acct.epoch}`);
-      if (acct.status !== STATUS_ACTIVE) probs.push(acct.status === STATUS_RETRACTED ? "this epoch is RETRACTED on-chain" : `on-chain status ${acct.status}`);
+      const warnings = [];
+      // SUPERSEDED: still a valid historical proof, but not the county's current data.
+      if (acct.status === STATUS_SUPERSEDED) warnings.push(`not the latest epoch: superseded by epoch ${acct.supersededBy || "?"}`);
+      else if (acct.status !== STATUS_ACTIVE) probs.push(acct.status === STATUS_RETRACTED ? "this epoch is RETRACTED on-chain" : `on-chain status ${acct.status}`);
       // v2 roots carry schema = SCHEMA_V2; v1 proof files must never be checked against a v2 root or vice versa.
       if (leafVersion === 2 ? acct.schema !== SCHEMA_V2_HEX : acct.schema === SCHEMA_V2_HEX)
         probs.push(`the on-chain fingerprint format (schema ${acct.schema.slice(0, 12)}…) is not the v${leafVersion} format these proof files use`);
       if (acct.merkleRoot !== county.merkle_root) probs.push("on-chain root differs from the published fingerprint (the on-chain root is used)");
       anchor = { kind: "onchain", ok: probs.filter((p) => !p.startsWith("on-chain root differs")).length === 0, root: acct.merkleRoot,
-                 nParcels: Number(acct.nParcels), status: acct.status, postedAt: acct.postedAt, version: acct.version, schema: acct.schema, slot: acct.slot, problems: probs };
+                 nParcels: Number(acct.nParcels), status: acct.status, postedAt: acct.postedAt, version: acct.version, schema: acct.schema, slot: acct.slot, problems: probs,
+                 current: acct.status === STATUS_ACTIVE, supersededBy: acct.status === STATUS_SUPERSEDED ? (acct.supersededBy || null) : null,
+                 retractReason: acct.retractReason ?? null, manifestSha256: acct.manifestSha256 ?? null, warnings };
     }
   } catch (e) {
     anchor = { kind: "published", ok: true, root: county.merkle_root, nParcels: county.n_parcels, note: `on-chain check unavailable: ${e.message || e}` };
@@ -482,4 +501,121 @@ export async function rootFromRowsV2(fips, epoch, rows) {
     lv = nx;
   }
   return { root: toHex(await rootHashV2(fips, epoch, rows.length, lv[0])), leaves };
+}
+
+// ---------------------------------------------------------------- program v2: county head, history, manifest
+// Same rules as the SDK 0.3.0 (accounts.ts decodeCountyHead, rpc.ts fetchLatest, manifest.ts verifyManifest).
+export const REASON_NAMES = { 0: "none", 1: "superseded", 2: "personal information", 3: "source error", 4: "duplicate", 5: "build error", 255: "other" };
+export const STATUS_NAMES = { 1: "active", 2: "retracted", 3: "superseded" };
+let HEAD_DISC;
+export async function countyHeadDiscriminator() { return (HEAD_DISC ??= (await sha256(enc.encode("account:CountyHead"))).slice(0, 8)); }
+
+/** Decode a CountyHead (48 bytes: disc | fips u32 | latest_epoch u32 | latest_active_epoch u32 | n_epochs u32 | updated_at i64 | bump u8 | reserved). */
+export async function decodeCountyHead(data) {
+  if (data.length < 33) throw new Error("account is too short to be a CountyHead");
+  if (!eq(data.subarray(0, 8), await countyHeadDiscriminator())) throw new Error("account is not a CountyHead");
+  const dv = new DataView(data.buffer, data.byteOffset, data.byteLength);
+  return { fips: dv.getUint32(8, true), latestEpoch: dv.getUint32(12, true), latestActiveEpoch: dv.getUint32(16, true),
+           nEpochs: dv.getUint32(20, true), updatedAt: Number(dv.getBigInt64(24, true)), bump: data[32] };
+}
+
+/**
+ * getMultipleAccounts (finalized) for up to 100 addresses. Returns one entry per address: null (missing) or
+ * { owner, data: Uint8Array }. Throws on network/RPC errors. Accounts not owned by CountyRoot are an error.
+ */
+export async function fetchAccounts(rpcUrl, addrs, { fetchImpl = globalThis.fetch, timeoutMs = 8000 } = {}) {
+  if (!addrs.length) return [];
+  if (addrs.length > 100) throw new Error("at most 100 accounts per call");
+  const ctl = typeof AbortController === "function" ? new AbortController() : null;
+  const t = ctl ? setTimeout(() => ctl.abort(), timeoutMs) : null;
+  try {
+    const res = await fetchImpl(rpcUrl, {
+      method: "POST", headers: { "content-type": "application/json" }, signal: ctl?.signal,
+      body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "getMultipleAccounts", params: [addrs, { encoding: "base64", commitment: "finalized" }] }),
+    });
+    if (!res.ok) throw new Error(`RPC HTTP ${res.status}`);
+    const j = await res.json();
+    if (j.error) throw new Error(`RPC error: ${j.error.message ?? JSON.stringify(j.error)}`);
+    const vals = j.result?.value;
+    if (!Array.isArray(vals) || vals.length !== addrs.length) throw new Error("RPC returned the wrong number of accounts");
+    return vals.map((v, i) => {
+      if (!v) return null;
+      if (v.owner !== PROGRAM_ID) throw new Error(`account ${addrs[i]} is not owned by CountyRoot (owner ${v.owner})`);
+      return { owner: v.owner, data: b64decode(v.data[0]) };
+    });
+  } finally { if (t) clearTimeout(t); }
+}
+
+/**
+ * A county's on-chain history: the head (what is current) plus every listed epoch's status.
+ * `county.head` is the head PDA and `county.history` = [{ epoch, pda }] (baked in at build time; the browser can't
+ * derive PDAs). As with roots, a CountyRoot-owned CountyHead whose fips matches is the canonical one: only the
+ * program writes it, from the same fips it uses as a seed. Returns { head, epochs: [{ epoch, pda, account }] }.
+ * head is null if the county has no head yet (not migrated).
+ */
+export async function fetchHistory(rpcUrl, county, opts = {}) {
+  const list = (county.history || []).slice(0, 99);
+  const accts = await fetchAccounts(rpcUrl, [county.head, ...list.map((h) => h.pda)], opts);
+  let head = null;
+  if (accts[0]) { head = await decodeCountyHead(accts[0].data); if (head.fips !== county.fips) throw new Error(`county head is for fips ${head.fips}`); }
+  const epochs = [];
+  for (let i = 0; i < list.length; i++) {
+    const a = accts[i + 1] ? await decodeCountyRoot(accts[i + 1].data) : null;
+    if (a && (a.fips !== county.fips || a.epoch !== list[i].epoch)) throw new Error(`account ${list[i].pda} is fips ${a.fips} epoch ${a.epoch}`);
+    epochs.push({ ...list[i], account: a });
+  }
+  return { head, epochs };
+}
+
+/** Plain-language status of one epoch, given the head. */
+export function describeStatus(acct, head) {
+  if (!acct) return { state: "missing", text: "not on-chain" };
+  if (acct.status === STATUS_ACTIVE) return { state: "active", text: head && head.latestActiveEpoch === acct.epoch ? "active (current)" : "active" };
+  if (acct.status === STATUS_SUPERSEDED) return { state: "superseded", text: `superseded${acct.supersededBy ? ` by epoch ${acct.supersededBy}` : " by a later epoch"}${acct.statusChangedAt ? ` on ${new Date(acct.statusChangedAt * 1000).toISOString().slice(0, 10)}` : ""} (still valid as history)` };
+  if (acct.status === STATUS_RETRACTED) {
+    const why = acct.retractReason ? REASON_NAMES[acct.retractReason] ?? `reason ${acct.retractReason}` : null;
+    return { state: "retracted", text: `retracted${why ? ` (${why})` : ""}${acct.statusChangedAt ? ` on ${new Date(acct.statusChangedAt * 1000).toISOString().slice(0, 10)}` : ""}: do not rely on it` };
+  }
+  return { state: "unknown", text: `unknown status ${acct.status}` };
+}
+
+function canon(v) {
+  if (Array.isArray(v)) return v.map(canon);
+  if (v && typeof v === "object") return Object.fromEntries(Object.keys(v).sort().map((k) => [k, canon(v[k])]));
+  return v;
+}
+export const MANIFEST_KEYS = ["county_label", "fips", "epoch", "source_url", "source_query", "source_format", "fetched_at", "source_sha256",
+  "source_record_count", "data_as_of", "builder_commit", "recipe", "leaf_version", "schema_sha256", "packet_sha256",
+  "pii_scan", "n_parcels", "merkle_root", "supersedes_epoch", "reason"];
+export const MANIFEST_OPTIONAL_KEYS = ["fetched_at_is_upper_bound", "fetched_at_source", "fetched_on"];
+const isoToUnix = (s) => { if (s === null || s === undefined || s === "") return 0; const t = Date.parse(s); if (Number.isNaN(t)) throw new Error(`bad date ${s}`); return Math.floor(t / 1000); };
+
+/**
+ * Verify manifest bytes (exactly as downloaded) against a decoded v2 CountyRoot account, like the SDK's
+ * verifyManifest: sha256 == manifest_sha256, canonical form, allowed keys, and fips/epoch/n_parcels/merkle_root/
+ * packet+source hashes/leaf_version/fetched_at (+ upper-bound flag)/data_as_of agree with the chain.
+ */
+export async function verifyManifestBytes(bytes, acct) {
+  const problems = [];
+  if (!acct || !acct.manifestSha256) return { ok: false, problems: [`account is version ${acct?.version}; no on-chain manifest hash`], manifest: null };
+  const sha = toHex(await sha256(bytes));
+  if (sha !== acct.manifestSha256) problems.push("sha256(manifest) != on-chain manifest_sha256");
+  let m = null;
+  try { m = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes)); } catch { problems.push("manifest is not JSON"); }
+  if (m && (typeof m !== "object" || Array.isArray(m))) { problems.push("manifest is not a JSON object"); m = null; }
+  if (m) {
+    if (!eq(enc.encode(JSON.stringify(canon(m)) + "\n"), bytes)) problems.push("manifest is not in canonical form");
+    const extra = Object.keys(m).filter((k) => !MANIFEST_KEYS.includes(k) && !MANIFEST_OPTIONAL_KEYS.includes(k));
+    if (extra.length) problems.push(`unexpected manifest keys: ${extra.join(", ")}`);
+    const same = (name, a, b) => { if (a !== b) problems.push(`${name}: manifest ${a} != on-chain ${b}`); };
+    same("fips", m.fips, acct.fips); same("epoch", m.epoch, acct.epoch);
+    same("n_parcels", String(m.n_parcels), String(acct.nParcels)); same("merkle_root", m.merkle_root, acct.merkleRoot);
+    same("packet_sha256", m.packet_sha256, acct.packetSha256);
+    same("source_sha256", m.source_sha256 ?? null, /^0{64}$/.test(acct.sourceSha256) ? null : acct.sourceSha256);
+    same("leaf_version", m.leaf_version, acct.leafVersion);
+    try { same("fetched_at", isoToUnix(m.fetched_at), acct.fetchedAt); } catch (e) { problems.push(e.message); }
+    same("fetched_at_is_upper_bound", m.fetched_at_is_upper_bound === true, !!acct.fetchedAtIsUpperBound);
+    try { same("data_as_of", isoToUnix(m.data_as_of), acct.dataAsOf); } catch (e) { problems.push(e.message); }
+  }
+  return { ok: problems.length === 0, problems, manifest: m, sha256: sha };
 }
