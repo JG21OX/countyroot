@@ -1,0 +1,1380 @@
+{
+ "schema_v2": "b309043c77b9aa529244033ecbcaa030615fa949993c835bade21fd2abfbf00d",
+ "leaves": [
+  {
+   "fips": 48453,
+   "row": {
+    "id": "0",
+    "occ": 0,
+    "acres_micro": "0",
+    "sqft_centi": "0"
+   },
+   "leaf": "35df814b56e31f9bbccc7c7b6ef2e4d2966002b9465bd695742aa32d91d21060"
+  },
+  {
+   "fips": 40113,
+   "row": {
+    "id": "12601-01-01",
+    "occ": 3,
+    "acres_micro": "415276",
+    "sqft_centi": "1808900"
+   },
+   "leaf": "654b675cd30cb2b33892725c78de556d7eb79a5fe7e967cd788b4f71cb9e69d9"
+  },
+  {
+   "fips": 99999,
+   "row": {
+    "id": "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~",
+    "occ": 4294967295,
+    "acres_micro": "18446744073709551615",
+    "sqft_centi": "18446744073709551615"
+   },
+   "leaf": "fde52210b226c5bcb12952918cdd2968b6905ec1725406bf494fdbed30cfae09"
+  },
+  {
+   "fips": 6037,
+   "row": {
+    "id": "A B",
+    "occ": 1,
+    "acres_micro": "1",
+    "sqft_centi": "2"
+   },
+   "leaf": "fc746454e5a36b5c0eabb2b2736f3707df4b14db6a722aab7e43138cedbd9e63"
+  }
+ ],
+ "trees": [
+  {
+   "fips": 90001,
+   "epoch": 2,
+   "n_leaves": 1,
+   "top": "c74376ad1a019a7625c215759749ec63025a1a064d122c7a5c231b98d3717daa",
+   "root": "6a82154f7282938a2861c9677c0dd6dba708d1251700664e8928dc030bd85e80",
+   "proofs": [
+    {
+     "version": 2,
+     "fips": 90001,
+     "epoch": 2,
+     "nLeaves": 1,
+     "index": 0,
+     "siblings": [],
+     "row": {
+      "id": ".F7QWP6-R",
+      "occ": 0,
+      "acres_micro": "27611455",
+      "sqft_centi": "495979909"
+     }
+    }
+   ]
+  },
+  {
+   "fips": 90002,
+   "epoch": 3,
+   "n_leaves": 2,
+   "top": "1920eb94eb01982461fc1918f0e57b2aa0da6b4bea26d665b2affb6caf475941",
+   "root": "3ce82ce14d639cee5ee6e046a4e46df7abe242556faa48e9f57a4839b8a113ca",
+   "proofs": [
+    {
+     "version": 2,
+     "fips": 90002,
+     "epoch": 3,
+     "nLeaves": 2,
+     "index": 0,
+     "siblings": [
+      "ca055d36ead8e083c10bdb0b4b436e814dee604a19d52d5285795b6a8a6434d6"
+     ],
+     "row": {
+      "id": "9-CQ86RPWD",
+      "occ": 0,
+      "acres_micro": "300004433",
+      "sqft_centi": "121199938"
+     }
+    },
+    {
+     "version": 2,
+     "fips": 90002,
+     "epoch": 3,
+     "nLeaves": 2,
+     "index": 1,
+     "siblings": [
+      "1b73d49564927b2aa7b8b0247a4b8de37d00dbe7c91f07475f7afe4e38879510"
+     ],
+     "row": {
+      "id": "US4.K0XGVM",
+      "occ": 0,
+      "acres_micro": "913358965",
+      "sqft_centi": "72079098"
+     }
+    }
+   ]
+  },
+  {
+   "fips": 90003,
+   "epoch": 4,
+   "n_leaves": 3,
+   "top": "047aca23089b79b5cf25118a062de0bd93c04f402b05d7128e15af0db668bcee",
+   "root": "716d4a2f47afff06ee761ee03cfc7b1b471638d350f3fc95d85bec041bb1820d",
+   "proofs": [
+    {
+     "version": 2,
+     "fips": 90003,
+     "epoch": 4,
+     "nLeaves": 3,
+     "index": 0,
+     "siblings": [
+      "cf134009c3c90f6176b05ce421083a17a023aebeb0d57b7f32ff7ebf0106792d",
+      "9c08a3e415302e6ea7523104a0006887afb16c14798c2d8c278ed7af52bc7b1a"
+     ],
+     "row": {
+      "id": "3C1VSZHPQVHE",
+      "occ": 0,
+      "acres_micro": "611046676",
+      "sqft_centi": "259523023"
+     }
+    },
+    {
+     "version": 2,
+     "fips": 90003,
+     "epoch": 4,
+     "nLeaves": 3,
+     "index": 2,
+     "siblings": [
+      "2382de3b29388d7e10f14f7e211cd6901a2c760b262d695785c790ef7d2ba6e9"
+     ],
+     "row": {
+      "id": "Q3PJXRV",
+      "occ": 0,
+      "acres_micro": "855162726",
+      "sqft_centi": "740555347"
+     }
+    },
+    {
+     "version": 2,
+     "fips": 90003,
+     "epoch": 4,
+     "nLeaves": 3,
+     "index": 1,
+     "siblings": [
+      "2ed20cd8da630cfde049b432d91fc6f59493df2524a02dfc0a19bac2ca761a1a",
+      "9c08a3e415302e6ea7523104a0006887afb16c14798c2d8c278ed7af52bc7b1a"
+     ],
+     "row": {
+      "id": "C-V92RB7Y",
+      "occ": 0,
+      "acres_micro": "299663580",
+      "sqft_centi": "811060357"
+     }
+    }
+   ]
+  },
+  {
+   "fips": 90004,
+   "epoch": 5,
+   "n_leaves": 4,
+   "top": "df4a792ba4de88e372b3c45db8fdb27beae574e7ccb9c138f6f478f96413898e",
+   "root": "52442a750b7ce7bdcf9cea57a4e819bc9a806100e94cc3fdf9051b7381373854",
+   "proofs": [
+    {
+     "version": 2,
+     "fips": 90004,
+     "epoch": 5,
+     "nLeaves": 4,
+     "index": 0,
+     "siblings": [
+      "77fb96863c927913defbc5e672d73f15e6ea2af1118ed654d2e9d66e302548da",
+      "67aee118454b28c78431125963cf65370a7111775fff3f59673a035307b26440"
+     ],
+     "row": {
+      "id": "-N0YY5ESM44VHX",
+      "occ": 0,
+      "acres_micro": "673606838",
+      "sqft_centi": "40461351"
+     }
+    },
+    {
+     "version": 2,
+     "fips": 90004,
+     "epoch": 5,
+     "nLeaves": 4,
+     "index": 3,
+     "siblings": [
+      "95450f1fd1e966b5004c41b6e7a527c8264ebd7b997ae6d66d7704302890fa36",
+      "5f8311923248986bd6fbb7f2f1defc40bf768368af5aad30ef76a5d66a068949"
+     ],
+     "row": {
+      "id": "X2ANFDS SM72X",
+      "occ": 0,
+      "acres_micro": "3501079",
+      "sqft_centi": "11359701"
+     }
+    },
+    {
+     "version": 2,
+     "fips": 90004,
+     "epoch": 5,
+     "nLeaves": 4,
+     "index": 2,
+     "siblings": [
+      "5b921fee28942d61fb1e8ebdcef20fcb2b13d0bff5e09b1b8e6fde5b9c4345ec",
+      "5f8311923248986bd6fbb7f2f1defc40bf768368af5aad30ef76a5d66a068949"
+     ],
+     "row": {
+      "id": "SUJA",
+      "occ": 0,
+      "acres_micro": "989169460",
+      "sqft_centi": "97920026"
+     }
+    }
+   ]
+  },
+  {
+   "fips": 90005,
+   "epoch": 1,
+   "n_leaves": 5,
+   "top": "447dc3a1900facf7fa89a93add35677a2273edea5508e2375ba6ba6101caf498",
+   "root": "7e7d0acea715d60e858b0ae876ecdfddc030c2aa11e1bb9c1cf9556b8dc83064",
+   "proofs": [
+    {
+     "version": 2,
+     "fips": 90005,
+     "epoch": 1,
+     "nLeaves": 5,
+     "index": 0,
+     "siblings": [
+      "6e215ce2aaa32d860b778195b94991cff85d3c4fea734347ce6e783e3849d543",
+      "59dce30b4bf7fad40ba637ea524418123c661daaf2cd346bc21750f94a84c9a1",
+      "dc2b2d83614876e81fc88c64729a884ff58f13008df14159294bedf597cf6b3d"
+     ],
+     "row": {
+      "id": "0",
+      "occ": 0,
+      "acres_micro": "331321755",
+      "sqft_centi": "434548435"
+     }
+    },
+    {
+     "version": 2,
+     "fips": 90005,
+     "epoch": 1,
+     "nLeaves": 5,
+     "index": 4,
+     "siblings": [
+      "06ecdd39f2a9255a41f2fd820360d4188a80ee571603915fd0a23bdcecb1a898"
+     ],
+     "row": {
+      "id": "XUJX8.ZN",
+      "occ": 0,
+      "acres_micro": "665376182",
+      "sqft_centi": "436081422"
+     }
+    },
+    {
+     "version": 2,
+     "fips": 90005,
+     "epoch": 1,
+     "nLeaves": 5,
+     "index": 2,
+     "siblings": [
+      "81907b9d42fd4e9c02a2d3397f08079e8e1412e715f2a05f7c1ab574fa9263fb",
+      "fedeb9709da57bde19f01fbc63c53b621e186219ef287e1d39f35a932d34ab8a",
+      "dc2b2d83614876e81fc88c64729a884ff58f13008df14159294bedf597cf6b3d"
+     ],
+     "row": {
+      "id": "DG  C4CA ZUF8G",
+      "occ": 0,
+      "acres_micro": "546736566",
+      "sqft_centi": "146817172"
+     }
+    },
+    {
+     "version": 2,
+     "fips": 90005,
+     "epoch": 1,
+     "nLeaves": 5,
+     "index": 3,
+     "siblings": [
+      "5717de1f2c03862d75c5c28847d19033ac33e77d39ebdd30f233289f1fb2d13a",
+      "fedeb9709da57bde19f01fbc63c53b621e186219ef287e1d39f35a932d34ab8a",
+      "dc2b2d83614876e81fc88c64729a884ff58f13008df14159294bedf597cf6b3d"
+     ],
+     "row": {
+      "id": "WK9D6.LN12YTHR",
+      "occ": 0,
+      "acres_micro": "843414859",
+      "sqft_centi": "209769596"
+     }
+    },
+    {
+     "version": 2,
+     "fips": 90005,
+     "epoch": 1,
+     "nLeaves": 5,
+     "index": 1,
+     "siblings": [
+      "f29739dc03e320e0d06c4cadd901150faf33bdc25079f1ba73b01de74b6ff6bc",
+      "59dce30b4bf7fad40ba637ea524418123c661daaf2cd346bc21750f94a84c9a1",
+      "dc2b2d83614876e81fc88c64729a884ff58f13008df14159294bedf597cf6b3d"
+     ],
+     "row": {
+      "id": "1R92579R",
+      "occ": 0,
+      "acres_micro": "108260056",
+      "sqft_centi": "700060765"
+     }
+    }
+   ]
+  },
+  {
+   "fips": 90006,
+   "epoch": 2,
+   "n_leaves": 6,
+   "top": "b5851fd0e1e21bcf7d5878e8654e574dc6f393f0e5794f603ee34ebafaf94393",
+   "root": "629a90f5432b35748e1d0720fbffcb6f47931438f7917ba21bd97fc2885adcbe",
+   "proofs": [
+    {
+     "version": 2,
+     "fips": 90006,
+     "epoch": 2,
+     "nLeaves": 6,
+     "index": 0,
+     "siblings": [
+      "9382205adc92786c02c509f3c270ed82bb14e6187a465481d7422826d776bd8e",
+      "50e45127216bf85774d9ba26dc6318c11bf216edb0067620a9cd2d0134eb7acc",
+      "b1116c3477ad84381e2737b45f4ed4f66dddd09f7d3e192e64a7faab9700934b"
+     ],
+     "row": {
+      "id": "5QAVFG",
+      "occ": 0,
+      "acres_micro": "232338195",
+      "sqft_centi": "479207105"
+     }
+    },
+    {
+     "version": 2,
+     "fips": 90006,
+     "epoch": 2,
+     "nLeaves": 6,
+     "index": 5,
+     "siblings": [
+      "c77f36e49d55017a430e40ed5f203f5c0f938ee0788cb88c8a35009d6141316b",
+      "705a10c20be45e764b1e39cfa16ec28005e3021872cbe493d3be132ec90d07a0"
+     ],
+     "row": {
+      "id": "XF",
+      "occ": 0,
+      "acres_micro": "903091340",
+      "sqft_centi": "476194778"
+     }
+    },
+    {
+     "version": 2,
+     "fips": 90006,
+     "epoch": 2,
+     "nLeaves": 6,
+     "index": 3,
+     "siblings": [
+      "baa8384b65adedc6d1075fb2c5982eb67a35bd3af0227ecbf324cde987bc4e5d",
+      "3c87fa5e722f30530ee7b482d700ba070adf04514fd51992c50655ea7fddcc94",
+      "b1116c3477ad84381e2737b45f4ed4f66dddd09f7d3e192e64a7faab9700934b"
+     ],
+     "row": {
+      "id": "GRQLJ-C0D",
+      "occ": 0,
+      "acres_micro": "584144864",
+      "sqft_centi": "67630043"
+     }
+    },
+    {
+     "version": 2,
+     "fips": 90006,
+     "epoch": 2,
+     "nLeaves": 6,
+     "index": 4,
+     "siblings": [
+      "c751f75054b3136500b956e4b2ea1e0f8f3be3c0497b9fbcffaede32703693b0",
+      "705a10c20be45e764b1e39cfa16ec28005e3021872cbe493d3be132ec90d07a0"
+     ],
+     "row": {
+      "id": "VZ4SQGPE5",
+      "occ": 0,
+      "acres_micro": "896260042",
+      "sqft_centi": "942186296"
+     }
+    }
+   ]
+  },
+  {
+   "fips": 90007,
+   "epoch": 3,
+   "n_leaves": 7,
+   "top": "5551e658cf3d157be287df9c521f65ab0b1a10a6faa2f4e3761698637d675b9e",
+   "root": "805777edc73b901fa411d65d6a99c9d771e4449d223a6da9c9f7941650c44524",
+   "proofs": [
+    {
+     "version": 2,
+     "fips": 90007,
+     "epoch": 3,
+     "nLeaves": 7,
+     "index": 0,
+     "siblings": [
+      "ee4a85985b246f59a1698a07436a0d0ea38dba0fe2669f74b8557683be8f42b9",
+      "e626b0cb7ea08428071fef810eda0eba5d29e20f0c3c5f4db9d4c78b9fa8a7a4",
+      "b1dc514e97dfe8ea18437eac18782e39eb4e5fc6523fcd654be090cee87cf38b"
+     ],
+     "row": {
+      "id": "1VQ1",
+      "occ": 0,
+      "acres_micro": "655343949",
+      "sqft_centi": "67264900"
+     }
+    },
+    {
+     "version": 2,
+     "fips": 90007,
+     "epoch": 3,
+     "nLeaves": 7,
+     "index": 6,
+     "siblings": [
+      "10bcba2969368088fbf662e6bc0244820ab86943edfbda217f398f613b64630c",
+      "0e3a0eaf290e3d779aadc0935c0f9da803d3373b2eccb7e26b89c803939d2fa3"
+     ],
+     "row": {
+      "id": "ZXRQLPJG9X1J",
+      "occ": 0,
+      "acres_micro": "588535407",
+      "sqft_centi": "7870957"
+     }
+    },
+    {
+     "version": 2,
+     "fips": 90007,
+     "epoch": 3,
+     "nLeaves": 7,
+     "index": 3,
+     "siblings": [
+      "500ba9d3acec776284d0fd5de70b19f4696ed1b1d97f29aa017ba15fea83fe88",
+      "b52caf03dde9cf6062b17bb2a3440cae2c9014e1f2db15dba8349995dd2a831e",
+      "b1dc514e97dfe8ea18437eac18782e39eb4e5fc6523fcd654be090cee87cf38b"
+     ],
+     "row": {
+      "id": "R7T270",
+      "occ": 0,
+      "acres_micro": "720563592",
+      "sqft_centi": "887159203"
+     }
+    },
+    {
+     "version": 2,
+     "fips": 90007,
+     "epoch": 3,
+     "nLeaves": 7,
+     "index": 5,
+     "siblings": [
+      "95614e6d8b9040e4d3af93cd56827fac9f9f9d0477013e52e23a1fa7c00d09e9",
+      "1d6cee3babffc21628f3d854adc1ad25f01ed3d97dab8285c0ae0a65125fe6e4",
+      "0e3a0eaf290e3d779aadc0935c0f9da803d3373b2eccb7e26b89c803939d2fa3"
+     ],
+     "row": {
+      "id": "XDY51G",
+      "occ": 0,
+      "acres_micro": "426001131",
+      "sqft_centi": "976208601"
+     }
+    }
+   ]
+  },
+  {
+   "fips": 90008,
+   "epoch": 4,
+   "n_leaves": 8,
+   "top": "0698025aa7b2eb239ca4798411005a21fe9da30405bd1bc2d9b45753710e32fd",
+   "root": "d6859b9f9b989eb808d7bb8e07c04339f87a4a061f9541c1361bfa75d74b8efc",
+   "proofs": [
+    {
+     "version": 2,
+     "fips": 90008,
+     "epoch": 4,
+     "nLeaves": 8,
+     "index": 0,
+     "siblings": [
+      "b4a8520ea6ac59f3fbc776e0d580cefc59635e88cc7e53e1b26460e0591d7b49",
+      "c8832cdfc6d820b5be79a6a966f0337624c8d87d0385fcbb1720b8c4666dfd5f",
+      "90be98f055c5fa61e0e23202727408af477603637d15dd0e7008dd26e84f9680"
+     ],
+     "row": {
+      "id": "5P6C 6TNRC19GL",
+      "occ": 0,
+      "acres_micro": "281071859",
+      "sqft_centi": "192135413"
+     }
+    },
+    {
+     "version": 2,
+     "fips": 90008,
+     "epoch": 4,
+     "nLeaves": 8,
+     "index": 7,
+     "siblings": [
+      "adb7e5735e43cb453e89eece0e17a9b1de3f93d417e6e743cfa111916f486db0",
+      "9ca896aebeb415e2d3646ad8c32eadc7edcbc60a8da046314ba6f07d1251ff6e",
+      "58356c3f1f3760921e288ca3f3cf7aa8aa7d8f708386848284b7e309e7d1baee"
+     ],
+     "row": {
+      "id": "W4C5.- TMUMNVS",
+      "occ": 0,
+      "acres_micro": "23307985",
+      "sqft_centi": "916270114"
+     }
+    },
+    {
+     "version": 2,
+     "fips": 90008,
+     "epoch": 4,
+     "nLeaves": 8,
+     "index": 4,
+     "siblings": [
+      "90d1f9db0692d7c64f1548c19052946c2700b05ef6d45cc6652dbbdc3f773a79",
+      "c40ff9ae41a7f50718eef8808c084791748f7147ee11cf1eb1b16aba57e8401b",
+      "58356c3f1f3760921e288ca3f3cf7aa8aa7d8f708386848284b7e309e7d1baee"
+     ],
+     "row": {
+      "id": "JRTVBCSJ6",
+      "occ": 0,
+      "acres_micro": "690242919",
+      "sqft_centi": "457174484"
+     }
+    },
+    {
+     "version": 2,
+     "fips": 90008,
+     "epoch": 4,
+     "nLeaves": 8,
+     "index": 6,
+     "siblings": [
+      "aac8b445ed68e0aa586df4b32a926282f7efde8e3d9ff3b5e18b227e79ac30fc",
+      "9ca896aebeb415e2d3646ad8c32eadc7edcbc60a8da046314ba6f07d1251ff6e",
+      "58356c3f1f3760921e288ca3f3cf7aa8aa7d8f708386848284b7e309e7d1baee"
+     ],
+     "row": {
+      "id": "0V",
+      "occ": 0,
+      "acres_micro": "304563748",
+      "sqft_centi": "96148622"
+     }
+    }
+   ]
+  },
+  {
+   "fips": 90009,
+   "epoch": 5,
+   "n_leaves": 9,
+   "top": "fe272a808199b512a43eea7583eef7cdd9f68be6fe264217cb38c5a823a804c9",
+   "root": "58c45c52e7a1c79a5a3bca4acf88ee2dbf1b97fef6fc66a078e54180d8cb5453",
+   "proofs": [
+    {
+     "version": 2,
+     "fips": 90009,
+     "epoch": 5,
+     "nLeaves": 9,
+     "index": 0,
+     "siblings": [
+      "e5647bf72a0cf9bfafecf5a311b2d0f5979bc7c2588f5bb02f7fd50cf71aef59",
+      "d163860049f6723db7739de812e400cc5c0807a93b5d99b552474892493b5040",
+      "ea2fb32b1c2962faeeb81cb185d0ef4a555587f370317eb066e6ad72da3ef40d",
+      "2fa26259309b36f899bb31aef03c9e4a90d3983d92f41a7ef8f526b3d170c618"
+     ],
+     "row": {
+      "id": "5C0",
+      "occ": 0,
+      "acres_micro": "3547755",
+      "sqft_centi": "972731477"
+     }
+    },
+    {
+     "version": 2,
+     "fips": 90009,
+     "epoch": 5,
+     "nLeaves": 9,
+     "index": 8,
+     "siblings": [
+      "134f626c88a5cf4f48549619b78025fde3ca77fdaeccecc799fe4ddac6a39424"
+     ],
+     "row": {
+      "id": "XTC64WR",
+      "occ": 0,
+      "acres_micro": "746686519",
+      "sqft_centi": "64666629"
+     }
+    },
+    {
+     "version": 2,
+     "fips": 90009,
+     "epoch": 5,
+     "nLeaves": 9,
+     "index": 4,
+     "siblings": [
+      "c1bdff1e1bf784785725e468229186242919f61f0a3ed2e52b0cefd8718b480d",
+      "21095ec67d95d9a99bec1e8c5c1bb2e1e67e5e6e8d38f21eef5df98b708c85d0",
+      "9231abda9636a8c62405146b9734e78aa430e695e3ef8fc5778bf23d9def955b",
+      "2fa26259309b36f899bb31aef03c9e4a90d3983d92f41a7ef8f526b3d170c618"
+     ],
+     "row": {
+      "id": "NWCPMPL5DB",
+      "occ": 0,
+      "acres_micro": "546788936",
+      "sqft_centi": "925287581"
+     }
+    },
+    {
+     "version": 2,
+     "fips": 90009,
+     "epoch": 5,
+     "nLeaves": 9,
+     "index": 7,
+     "siblings": [
+      "4f424f27ffdbc12c963e2f3f5b283fec90e9e0f631f79f1ea86efce4d22a5fd3",
+      "5d329d58386d4fee8e94752cd41eed314efd979f09ef75188485dbc2e1cecc62",
+      "9231abda9636a8c62405146b9734e78aa430e695e3ef8fc5778bf23d9def955b",
+      "2fa26259309b36f899bb31aef03c9e4a90d3983d92f41a7ef8f526b3d170c618"
+     ],
+     "row": {
+      "id": "WKM",
+      "occ": 0,
+      "acres_micro": "770044560",
+      "sqft_centi": "466294608"
+     }
+    }
+   ]
+  },
+  {
+   "fips": 90015,
+   "epoch": 1,
+   "n_leaves": 15,
+   "top": "5d0e39d492a4bd3aa492ebae55ecae4111e1340124e76e5a4ddb6d97ba6c49b7",
+   "root": "e22834c2c66b5b1149a9f69a121c35ee700a6e0dd9e9c4e694747be5a427d855",
+   "proofs": [
+    {
+     "version": 2,
+     "fips": 90015,
+     "epoch": 1,
+     "nLeaves": 15,
+     "index": 0,
+     "siblings": [
+      "4a5e37acdc7e87b8d8c1ac7f8b222bd613f27823dc5823eac38bc015a834daa1",
+      "718bddd5d59293d919dc27fb1b0a07f582256c3f527f58e04eea52b93b9d9111",
+      "a2dffd867b16a21725570c18a25375af62be2b63277c00abe900eb0993d030f7",
+      "ca6f9160da3001a985b0fb9ce55d83060ab67e1aba9de6b53e81436138a62e60"
+     ],
+     "row": {
+      "id": "3PM0KB7JL",
+      "occ": 0,
+      "acres_micro": "599248593",
+      "sqft_centi": "701782908"
+     }
+    },
+    {
+     "version": 2,
+     "fips": 90015,
+     "epoch": 1,
+     "nLeaves": 15,
+     "index": 14,
+     "siblings": [
+      "9273963f5e85bdfc100a94ce65e48a20046911072e76f00355bd3406a370291c",
+      "618cb7566df61ead8a099f0b20624288365cbd38f2245a4ad73b61966adbb6a6",
+      "a49db3aa5a9c8fa948e520c70a1dc0326959fc375eb87399bded649295cd2600"
+     ],
+     "row": {
+      "id": "YLGRB K.E5",
+      "occ": 0,
+      "acres_micro": "361450081",
+      "sqft_centi": "575945189"
+     }
+    },
+    {
+     "version": 2,
+     "fips": 90015,
+     "epoch": 1,
+     "nLeaves": 15,
+     "index": 7,
+     "siblings": [
+      "37c9e947152a7ab6c32896a29af1b83fe20315fa872ff5ef35303c741cfe72c6",
+      "592ef8d3800c37ac75bbc6d075add64a289f86ca8f98b9a0e5308869a0d7f91d",
+      "cb3a177adcc1a60490387332a5375275f28ce994f613e3f67a0078a5bfde6a8e",
+      "ca6f9160da3001a985b0fb9ce55d83060ab67e1aba9de6b53e81436138a62e60"
+     ],
+     "row": {
+      "id": "F",
+      "occ": 0,
+      "acres_micro": "958999590",
+      "sqft_centi": "912905920"
+     }
+    },
+    {
+     "version": 2,
+     "fips": 90015,
+     "epoch": 1,
+     "nLeaves": 15,
+     "index": 13,
+     "siblings": [
+      "a3ccb5173e844b947baa11f5345c038160134d56759b60861f6e79ab7039db8e",
+      "3388bd7c7558425896058759f70bce367bef90162c4eec81683486038e677aa2",
+      "618cb7566df61ead8a099f0b20624288365cbd38f2245a4ad73b61966adbb6a6",
+      "a49db3aa5a9c8fa948e520c70a1dc0326959fc375eb87399bded649295cd2600"
+     ],
+     "row": {
+      "id": "WUTR6S",
+      "occ": 0,
+      "acres_micro": "492839652",
+      "sqft_centi": "440405828"
+     }
+    },
+    {
+     "version": 2,
+     "fips": 90015,
+     "epoch": 1,
+     "nLeaves": 15,
+     "index": 4,
+     "siblings": [
+      "eda36dfabe9ef613d032f8888853e59e9d3fba3b495ca5855c5c055c861f4a8c",
+      "7129a1118aa3caef66de2e07d4d63a62eff1e81ee35af76461e0568afb1bc654",
+      "cb3a177adcc1a60490387332a5375275f28ce994f613e3f67a0078a5bfde6a8e",
+      "ca6f9160da3001a985b0fb9ce55d83060ab67e1aba9de6b53e81436138a62e60"
+     ],
+     "row": {
+      "id": "B0XUCQBVN.5Q",
+      "occ": 0,
+      "acres_micro": "344284401",
+      "sqft_centi": "698736375"
+     }
+    }
+   ]
+  },
+  {
+   "fips": 90016,
+   "epoch": 2,
+   "n_leaves": 16,
+   "top": "b6672122c02a526aa5d739f2c895bddbc2bf89ef02354b566ae5058273438e98",
+   "root": "19e4d71c0140363171b20ede3d679cfdb857df6640b391ee678c89b67c63f7e9",
+   "proofs": [
+    {
+     "version": 2,
+     "fips": 90016,
+     "epoch": 2,
+     "nLeaves": 16,
+     "index": 0,
+     "siblings": [
+      "1943ac5e3398a1e0480845f8d819fad323f1cef727addfac354b6380b8c77ed7",
+      "c60563bbe4851935bc8a06167f044b61fc3502a2a55338bfe99feb9cf01ef7d0",
+      "6843fced785da77ea59ee7387ac174146355fb8ec45781be66642aed797c71a9",
+      "cc6f86b41e11d2b9b114e97d4931f3039936f6b89c7596e9f1bf438e1e83f237"
+     ],
+     "row": {
+      "id": "30YPSA06UYQUZQ",
+      "occ": 0,
+      "acres_micro": "108144977",
+      "sqft_centi": "234117998"
+     }
+    },
+    {
+     "version": 2,
+     "fips": 90016,
+     "epoch": 2,
+     "nLeaves": 16,
+     "index": 15,
+     "siblings": [
+      "29275daa5dbdb7a01eb57fc23bbbc40b7955187ac8196df87e09733e6a5aab57",
+      "26cfeef77a4684ab6cd0ccd0202069689d2575aa01399f225f14c06291b0a4a2",
+      "11d30536b29021ebe775b6fa8a87683ae26a621e15c0bc447389d479bf18df1c",
+      "1d2a45d64914a9945b0fa17f1bbb0cb2603640077975a4d9c37d39e1a5b64a50"
+     ],
+     "row": {
+      "id": "XUN",
+      "occ": 0,
+      "acres_micro": "14749203",
+      "sqft_centi": "40233629"
+     }
+    },
+    {
+     "version": 2,
+     "fips": 90016,
+     "epoch": 2,
+     "nLeaves": 16,
+     "index": 8,
+     "siblings": [
+      "cfb00cea90536f538bf7be004c8b5450119245e3a146b4d608fbfa28e202ebc7",
+      "b804372a8cdef76901c4eb6362803797ff2f4a79f944fc9af96601e6fb3b486e",
+      "637bf841515729090ccd35f912329ea8128d916ce9cbcb86a39f3418988a031e",
+      "1d2a45d64914a9945b0fa17f1bbb0cb2603640077975a4d9c37d39e1a5b64a50"
+     ],
+     "row": {
+      "id": "0.L1S-XLHXUNV",
+      "occ": 0,
+      "acres_micro": "141591806",
+      "sqft_centi": "524324714"
+     }
+    },
+    {
+     "version": 2,
+     "fips": 90016,
+     "epoch": 2,
+     "nLeaves": 16,
+     "index": 14,
+     "siblings": [
+      "e4db9efbea5658a3a27648789eafff8c3e9a85eb00060b5ea670ed0d9bf96dcc",
+      "26cfeef77a4684ab6cd0ccd0202069689d2575aa01399f225f14c06291b0a4a2",
+      "11d30536b29021ebe775b6fa8a87683ae26a621e15c0bc447389d479bf18df1c",
+      "1d2a45d64914a9945b0fa17f1bbb0cb2603640077975a4d9c37d39e1a5b64a50"
+     ],
+     "row": {
+      "id": ".T62",
+      "occ": 0,
+      "acres_micro": "281874507",
+      "sqft_centi": "985643218"
+     }
+    }
+   ]
+  },
+  {
+   "fips": 90017,
+   "epoch": 3,
+   "n_leaves": 17,
+   "top": "b2d50603bb569343fb6a1bf1d6db5c44141d3383b7b430233125badc57e9fc36",
+   "root": "0126c124262210af438f75598b94979b32c87e373d8909662894403301a5edfe",
+   "proofs": [
+    {
+     "version": 2,
+     "fips": 90017,
+     "epoch": 3,
+     "nLeaves": 17,
+     "index": 0,
+     "siblings": [
+      "f9441a222d799f58aabd76fbe597f44df4b16d3c67f8e0add90654ff1455589c",
+      "8486a9daeee7807c0d9251de05d008f612ad88ab18b7465c77d6d7777fd3d11c",
+      "3757f6b094bd614d104ca019b199d7f9e4287d5bc7f4b3aea68bd3e02ebde4f8",
+      "d32c3a6c49bd53377a106d0b76c362929aa5d316cc60121aa274b7729c61de8e",
+      "8cb52f965d19fdf0c91f803a249074538c2db9dd250cc64c3af52b4adb681b30"
+     ],
+     "row": {
+      "id": "3DJRS",
+      "occ": 0,
+      "acres_micro": "80290822",
+      "sqft_centi": "859535231"
+     }
+    },
+    {
+     "version": 2,
+     "fips": 90017,
+     "epoch": 3,
+     "nLeaves": 17,
+     "index": 16,
+     "siblings": [
+      "d8ed586b9861d40d8986e8492014656b9811c15f681f51fc9bfc9ca7a6ed8cda"
+     ],
+     "row": {
+      "id": "ZJ77JW4A773",
+      "occ": 0,
+      "acres_micro": "369811467",
+      "sqft_centi": "120435780"
+     }
+    },
+    {
+     "version": 2,
+     "fips": 90017,
+     "epoch": 3,
+     "nLeaves": 17,
+     "index": 8,
+     "siblings": [
+      "8ad860329a45be71dcac144bf4219d0e7d09489c3c49a1ec9dcc08b0d3bb27e0",
+      "315726bccd1a3bebfd68d65b355914fc20d75a6c01081ec5507405c0ff2ce2d2",
+      "4c485a81c9af7330d57f915501c58bbcbc87b3f6e532b4961d44f389b8e39d8b",
+      "1a53cfd862a5eaf8a00b11a16be1b53ccc4e3eb0ca6448523f42a9066cf9c1a6",
+      "8cb52f965d19fdf0c91f803a249074538c2db9dd250cc64c3af52b4adb681b30"
+     ],
+     "row": {
+      "id": "FL-ECF.",
+      "occ": 0,
+      "acres_micro": "949142932",
+      "sqft_centi": "837846679"
+     }
+    },
+    {
+     "version": 2,
+     "fips": 90017,
+     "epoch": 3,
+     "nLeaves": 17,
+     "index": 15,
+     "siblings": [
+      "d33e0dd3434e7cad735128c9e97cb8d551fbad2cce1071b1fdbd09a88dce7a34",
+      "f78f0547df6c84ada0ae2cd745b464a60dbed1920154fd7f937b90c63fa79666",
+      "12cbfb11fd2c6500facf02b06d58919e6c0ebfe60f07bc1bdd17b7c37b6ef5d2",
+      "1a53cfd862a5eaf8a00b11a16be1b53ccc4e3eb0ca6448523f42a9066cf9c1a6",
+      "8cb52f965d19fdf0c91f803a249074538c2db9dd250cc64c3af52b4adb681b30"
+     ],
+     "row": {
+      "id": "YT",
+      "occ": 0,
+      "acres_micro": "415496435",
+      "sqft_centi": "300565093"
+     }
+    }
+   ]
+  },
+  {
+   "fips": 90031,
+   "epoch": 2,
+   "n_leaves": 31,
+   "top": "8fa6ef5c36ef1c7efcfc2ad44c845aee02dce5fa9ea88e156792233b180e88c2",
+   "root": "25f3d5a7d637d22d51b256c7f0561590da0c9a0749cfea576169386b0c57afc3",
+   "proofs": [
+    {
+     "version": 2,
+     "fips": 90031,
+     "epoch": 2,
+     "nLeaves": 31,
+     "index": 0,
+     "siblings": [
+      "7ed1b9da879a45682dbf8b139cbcebd0bcdc819903b0ab23978cd25d008b2475",
+      "d9885735064870ec5c8d97407f34f47b7bf6854877018d996680b1f7abb35d99",
+      "67a0346d6788574ece4523d033bbb74e009baffb06222b7cfef600b89c1bf8a5",
+      "9a080d22a8d33574ba8fdfc95437cab659688cdab85a2efead7b5b117a6a3e4e",
+      "9578df40345c9f01e908ebadcaf6296b1e61282756021ca46e28bad8230e1934"
+     ],
+     "row": {
+      "id": "1K8CLLRDM",
+      "occ": 0,
+      "acres_micro": "588748107",
+      "sqft_centi": "73757258"
+     }
+    },
+    {
+     "version": 2,
+     "fips": 90031,
+     "epoch": 2,
+     "nLeaves": 31,
+     "index": 30,
+     "siblings": [
+      "fa0753ce45be675713715a336540a5031c07be0a222425fc368559e3e9a6c4eb",
+      "44b46c701644f85767156b82f0d6cd4b318be3b191a95d9aff6f6201c9c37c65",
+      "050a779a2aef8fffa933ef2fa6564c6e42442a1fedcdef9a7f1f6b32749d609f",
+      "19a055d8adb57e7f147912cc45747c2e925c8f997828bcfcde46aef28cab5865"
+     ],
+     "row": {
+      "id": "Z48KH4CHZ3A40U",
+      "occ": 0,
+      "acres_micro": "376364623",
+      "sqft_centi": "882382697"
+     }
+    },
+    {
+     "version": 2,
+     "fips": 90031,
+     "epoch": 2,
+     "nLeaves": 31,
+     "index": 15,
+     "siblings": [
+      "7635b99716c5e3cc9c70df7202dbbd188af03149ee8cd9e843c78883379b5862",
+      "f89a0c4f4d28348c453a871a07a7bc9d56033d0a5431e5aebde854bceda6687a",
+      "a2eac7a58e66295cd23415e3a550901af518984049adbe04bff6a11113d40110",
+      "85506a2cf9ad56f5058143c61cfcaf41818a4687a429e0af3c04ceedc4ea7d3e",
+      "9578df40345c9f01e908ebadcaf6296b1e61282756021ca46e28bad8230e1934"
+     ],
+     "row": {
+      "id": "HFU.9VGNCT1LW",
+      "occ": 0,
+      "acres_micro": "786481156",
+      "sqft_centi": "476643867"
+     }
+    },
+    {
+     "version": 2,
+     "fips": 90031,
+     "epoch": 2,
+     "nLeaves": 31,
+     "index": 29,
+     "siblings": [
+      "c5017a39245bf5f8a0efa8cfa33688d97eed7baca8e54d2bb2627b3a53c00d1c",
+      "73ad1980ef72205c49925e896864ef640cd9ef7083338d27903e945b4ff63b91",
+      "44b46c701644f85767156b82f0d6cd4b318be3b191a95d9aff6f6201c9c37c65",
+      "050a779a2aef8fffa933ef2fa6564c6e42442a1fedcdef9a7f1f6b32749d609f",
+      "19a055d8adb57e7f147912cc45747c2e925c8f997828bcfcde46aef28cab5865"
+     ],
+     "row": {
+      "id": "X4TH",
+      "occ": 0,
+      "acres_micro": "412830807",
+      "sqft_centi": "844540306"
+     }
+    },
+    {
+     "version": 2,
+     "fips": 90031,
+     "epoch": 2,
+     "nLeaves": 31,
+     "index": 2,
+     "siblings": [
+      "5ff8f0ab82501e1cf46b040e5c279b6d1c3f8f8f48ece1953355eedf2e2872f6",
+      "5416c0e9e56c599f65f5fec8d83509824ca58330026ff24cf19ec300dd048960",
+      "67a0346d6788574ece4523d033bbb74e009baffb06222b7cfef600b89c1bf8a5",
+      "9a080d22a8d33574ba8fdfc95437cab659688cdab85a2efead7b5b117a6a3e4e",
+      "9578df40345c9f01e908ebadcaf6296b1e61282756021ca46e28bad8230e1934"
+     ],
+     "row": {
+      "id": "2-3SJ 9LW.",
+      "occ": 0,
+      "acres_micro": "185544662",
+      "sqft_centi": "764751017"
+     }
+    }
+   ]
+  },
+  {
+   "fips": 90033,
+   "epoch": 4,
+   "n_leaves": 33,
+   "top": "4f62491c0d1f0af977a7c37895386aecb20f8eeca81442e49edcd8dcd7b64963",
+   "root": "0ee8467584f00733876609c66c8d3b67ffc5b5ceb8c5e18a20c630d3c2258802",
+   "proofs": [
+    {
+     "version": 2,
+     "fips": 90033,
+     "epoch": 4,
+     "nLeaves": 33,
+     "index": 0,
+     "siblings": [
+      "13aae015ebd208227a673278375b750e4abc11a76ae65513cae44c5d2aa32b14",
+      "d9c7739c3ff1f81911fb65759f2f6430908de6a1ed4e18d07a5222da110ea68f",
+      "9fcae136c54c5b94f7f391df5f4738103f1153c1fc626d9e29260f83f49f1354",
+      "b67218a162a1c2e4b88b5fe474900b4fe72b0c1aa45e6692cabf6605427ba249",
+      "9f7988d75d0866398bb6ce99c91887364c72d8e73f03a112e49e701141dfe5bf",
+      "b775ad2ff0ddb86358b402ea6fcd9aceedc0159e707c3c975171f1fde06f7a10"
+     ],
+     "row": {
+      "id": "19VYJUM",
+      "occ": 0,
+      "acres_micro": "715428014",
+      "sqft_centi": "359444946"
+     }
+    },
+    {
+     "version": 2,
+     "fips": 90033,
+     "epoch": 4,
+     "nLeaves": 33,
+     "index": 32,
+     "siblings": [
+      "3012f3fc2f762363f0cdcb1cc269148ead470445e1e54a7b7159f9286a531448"
+     ],
+     "row": {
+      "id": "ZT2.L2ND",
+      "occ": 0,
+      "acres_micro": "529000569",
+      "sqft_centi": "742407504"
+     }
+    },
+    {
+     "version": 2,
+     "fips": 90033,
+     "epoch": 4,
+     "nLeaves": 33,
+     "index": 16,
+     "siblings": [
+      "fb67305f48f7987be4137bfe3ba128689d95b4a7fb77a630f526aacb185a8726",
+      "a225dc70b91b77843b3bbe245239235d258a81f5ff6f13cfc0feeab054eb96df",
+      "f381a63912d7d042796fdcc9f09c8b03d4c7358735958a9bf433e4b7a99c0081",
+      "b4f9918c0c24e90b6fcd2fae8a9ef8165c033c2dbf9abd999849ca912ca9a535",
+      "7e7916f4960a9e38b4106c153ea5924e50773a18f8579deb4e20af05395436df",
+      "b775ad2ff0ddb86358b402ea6fcd9aceedc0159e707c3c975171f1fde06f7a10"
+     ],
+     "row": {
+      "id": "JF8GJQ6GBD",
+      "occ": 0,
+      "acres_micro": "383131284",
+      "sqft_centi": "217249353"
+     }
+    },
+    {
+     "version": 2,
+     "fips": 90033,
+     "epoch": 4,
+     "nLeaves": 33,
+     "index": 31,
+     "siblings": [
+      "2849406e2ec0fdefc24e21eff4eb46c13734e44d30ea5df0ee703bb2961291c5",
+      "e0c27df10ee5283cacebb4d889f1ca4fd3156b34bf88e1c3fce8dd8ca9c6d9b9",
+      "47a13b795e59a48cc11e3cbceb07b709341c229af1dafe1bbf7f7b30c97a33a5",
+      "cfec061b91c70bad50930c19d28fd62cae083266be09fce094c78549c7683d75",
+      "7e7916f4960a9e38b4106c153ea5924e50773a18f8579deb4e20af05395436df",
+      "b775ad2ff0ddb86358b402ea6fcd9aceedc0159e707c3c975171f1fde06f7a10"
+     ],
+     "row": {
+      "id": "ZGNGCE",
+      "occ": 0,
+      "acres_micro": "37384939",
+      "sqft_centi": "490349168"
+     }
+    },
+    {
+     "version": 2,
+     "fips": 90033,
+     "epoch": 4,
+     "nLeaves": 33,
+     "index": 8,
+     "siblings": [
+      "a9fc8183bdf98a5f9c93802c652380f46c80c4fe7df6177e3008ba37e21f7f42",
+      "151b3ebbf13bf87273c2be4f22d0e1af186d2671d203d0a39b25ddcbed41e484",
+      "0faea2c52a355444f9232baaf3381215b4b7a43de9535c056d5b7cff00e79ec8",
+      "722a90b2f50bdb06b4eae707059897d2e0cf6e9457b110c96750e3b27d328260",
+      "9f7988d75d0866398bb6ce99c91887364c72d8e73f03a112e49e701141dfe5bf",
+      "b775ad2ff0ddb86358b402ea6fcd9aceedc0159e707c3c975171f1fde06f7a10"
+     ],
+     "row": {
+      "id": "8U",
+      "occ": 0,
+      "acres_micro": "601494569",
+      "sqft_centi": "414714068"
+     }
+    }
+   ]
+  },
+  {
+   "fips": 90100,
+   "epoch": 1,
+   "n_leaves": 100,
+   "top": "6d758559014ff44395f574568d226dbe056a00ba5b177453a73790506456f333",
+   "root": "6e97d29b978c577f84549180d4926e39d74e62342a3548065a0d94608a126998",
+   "proofs": [
+    {
+     "version": 2,
+     "fips": 90100,
+     "epoch": 1,
+     "nLeaves": 100,
+     "index": 0,
+     "siblings": [
+      "d49b5e11fc7a8af6aeecd840eceaca7c9dd5aeeea853b883aef0d68a4ba8e3c5",
+      "be52040d2432c2c553239b061a87eb3bb486652a65702c6f7f2adc974b55991a",
+      "bd1a2fe8fdf462372b51a898c244d7be2919f4e76fe0b4c585bb43e83841b0e9",
+      "59e477cc179e31a0eaf6a9c7270959ea269c25c7384ae693e965fbe50e9a168d",
+      "6a7ab9d2a3af182bb01216bbcf62fa0f85fdc97d9fc461f8b272640c2b7fdbce",
+      "de03cc7c102cb9a1f7360ddc6299ed615a2336543eb6a02011c29ec343661187",
+      "7dd3d15e61ce1820d9f0598aa2c369c1f6e63ec26554bee7a3226523bdccad92"
+     ],
+     "row": {
+      "id": "-",
+      "occ": 0,
+      "acres_micro": "62829451",
+      "sqft_centi": "30635149"
+     }
+    },
+    {
+     "version": 2,
+     "fips": 90100,
+     "epoch": 1,
+     "nLeaves": 100,
+     "index": 99,
+     "siblings": [
+      "7609ffb14d795267b63a20bbbd6405e3215fcbcef29aae9b9ea4e930e1a54d15",
+      "6900db22c89d5f691647fe3d5765785573dc970b310d6188fae35c49e92cc589",
+      "037f4d55b7c7efd2f49b58fc7474fa9b3dab289f577f0370db527394bb3232f8",
+      "78952eb047279f79af09c55d7a6bc3487298804b761be1135dc0e97a093d175a"
+     ],
+     "row": {
+      "id": "ZXKJGH LX04E",
+      "occ": 0,
+      "acres_micro": "395692541",
+      "sqft_centi": "32527235"
+     }
+    },
+    {
+     "version": 2,
+     "fips": 90100,
+     "epoch": 1,
+     "nLeaves": 100,
+     "index": 50,
+     "siblings": [
+      "d9ead3223fc8563d01b8889e2454424a1c040d512a075de545425ae7b5b84169",
+      "50e844b658487e619d86150e957b212ae39ccf77d82ea2fce53b1611efc083fd",
+      "698d46e7fdf422c74f1b575949191a6819dd4bddaf9f89c2eac0d9785cf984f0",
+      "8608ea8124e23b1a5de23f575bf8a77b8480e852d37afd464bbf87a4e5679e3d",
+      "e9540e84d575b792041011e1121c40d5fd198c7c090fa5af6bfaa4b92c795fb6",
+      "9544791aee1be7e4a37e9057d4365767a67d0d8b9c555a3221a812112c541ba9",
+      "7dd3d15e61ce1820d9f0598aa2c369c1f6e63ec26554bee7a3226523bdccad92"
+     ],
+     "row": {
+      "id": "GDCC",
+      "occ": 0,
+      "acres_micro": "317386714",
+      "sqft_centi": "801892020"
+     }
+    },
+    {
+     "version": 2,
+     "fips": 90100,
+     "epoch": 1,
+     "nLeaves": 100,
+     "index": 98,
+     "siblings": [
+      "a4c60eb9cd8725892577d21fb227103f3ccc0a95a9efbbc22386a42c5268cc4c",
+      "6900db22c89d5f691647fe3d5765785573dc970b310d6188fae35c49e92cc589",
+      "037f4d55b7c7efd2f49b58fc7474fa9b3dab289f577f0370db527394bb3232f8",
+      "78952eb047279f79af09c55d7a6bc3487298804b761be1135dc0e97a093d175a"
+     ],
+     "row": {
+      "id": "ZM",
+      "occ": 0,
+      "acres_micro": "62684530",
+      "sqft_centi": "741287291"
+     }
+    },
+    {
+     "version": 2,
+     "fips": 90100,
+     "epoch": 1,
+     "nLeaves": 100,
+     "index": 85,
+     "siblings": [
+      "ed18d225a6184f61d037242931a9e0d5235da68ef3e34efdb1e2d1224517a5b7",
+      "ecede5e6ff65d57330a56e5d3d3c8078add80c9974d8bcdc9e8e7e59100d16da",
+      "d8ddeecda480ba2876a427a3cb099cea1839b0e4ecb99bd2886d9a8fe63ea38d",
+      "4b246bc7ab3b153291c4b32e07c537bdf8fcb44cb18d63328fbd0ee58adbd891",
+      "ba2970adbd506c231377bef0d7b2904a2eb210747e48643517d0df7dcf5e890c",
+      "a7d3beac42721942c727a8120daa0c63ab71506903200c27502ca98cbe9e57ca",
+      "78952eb047279f79af09c55d7a6bc3487298804b761be1135dc0e97a093d175a"
+     ],
+     "row": {
+      "id": "V68",
+      "occ": 0,
+      "acres_micro": "588195213",
+      "sqft_centi": "410114188"
+     }
+    }
+   ]
+  },
+  {
+   "fips": 91000,
+   "epoch": 1,
+   "n_leaves": 1000,
+   "top": "3e992b82c5b9034cce156de88f9258ed824156495757a91baa24740c12b752cd",
+   "root": "88c3367ed4f7ceedea9f0d2641ec1745b33858ff16b09ee3235e4b472f74b91e",
+   "proofs": [
+    {
+     "version": 2,
+     "fips": 91000,
+     "epoch": 1,
+     "nLeaves": 1000,
+     "index": 0,
+     "siblings": [
+      "f968dc9e68aeae8fa8a39f2437a572b1f6f05951da898284a731a0809f92f5b6",
+      "27e188670f3489e3145df74a2b65836a9708684a52c9c04be7c74b2b6bc63e96",
+      "a91decb26307e2c46bad82760fb5beaf72803ba54c84098d6659712d07667393",
+      "2bf2d8675819d62d32dce07d17a9d92c127cf78be59408a6eeaaf31751e94ae7",
+      "698ca97b019b54a3458d13044f89a6b9d6b58d87d37fded21bc3829e144503c9",
+      "37768617cf08c42edd19373c9c47008225992359ac915ed8d1a0769a18f4af11",
+      "99b736362486e0732ad9c5af1f742b1d3dc6f022d281e977ddc5358735f846d2",
+      "1400a3fa0a7d25f9fd982bf928132ed806da7a16d376e6c6ac96e66b2599cd3c",
+      "5c2af5e31b2274dd10c260978bc143ac7d3b1969f00bf5ada6709a2e678c5fc2",
+      "4fd25e853af2aabcd3bf21b5cfb3d4f83437a6b6e6cb34ae2cfd13b779b375d3"
+     ],
+     "row": {
+      "id": "-",
+      "occ": 0,
+      "acres_micro": "31390632",
+      "sqft_centi": "561891531"
+     }
+    },
+    {
+     "version": 2,
+     "fips": 91000,
+     "epoch": 1,
+     "nLeaves": 1000,
+     "index": 999,
+     "siblings": [
+      "8b93a83095935a6ba9b9e332a5594b541a44942b6f015015acb1f68557e74fd8",
+      "73643af412b16aa3ce47593db555507037fa0cc9e9dced0e02189bd49bdffb88",
+      "7de881f071385974c8f9bf1aba81e2652aa2867fa90cf319bac6486f6875d19a",
+      "af01e3ea0df10d55383551bc0928ad0a083a4f6ab9dccc0fba2b9d04d05592b4",
+      "592d77550fad859b2bc820fedc76cdcb853c40bd953093fa6f5b6658536f04fb",
+      "556b4c0da386c1868a1740eabf959771ea56b909dde254758db37cf641c6f636",
+      "8b662b9b01f59746cd7976363e5c429ffcb37f62935257276c6448ddd9159425",
+      "9c5372be3ddf61264623f34dbeaacc64a72c8f90661973658b3ca33a9b1b5bda"
+     ],
+     "row": {
+      "id": "ZZC18XJG7C.S1D",
+      "occ": 0,
+      "acres_micro": "44974926",
+      "sqft_centi": "833568934"
+     }
+    },
+    {
+     "version": 2,
+     "fips": 91000,
+     "epoch": 1,
+     "nLeaves": 1000,
+     "index": 500,
+     "siblings": [
+      "93a1b551418f0befc3cfffd2d1dac27fd76d88cb25d210a3315b5e041edb6f8a",
+      "c7e8b4b42ab3eadb6a68e3ec91a2222ee19a337dde4342d0a3d1b6142b7289cc",
+      "02efe5a09d5334281efe31dcec085988bd842ffc74a0959eeab0daebf5fdf676",
+      "e3ffd37f58a29d1a97e4b8625cb68b4bbdb2e794e641da68f79cf4f752b3dac6",
+      "317184083558d1599fa8d788e5d8597a7b3cf1f4f38abca7bc48bfe588db8091",
+      "526789be550ec2db6a903a7bc99fab02860f64be3a78b73e19fbd18bc211259a",
+      "d94c553f7458a00f4edd005aae68bd9c75622afd602e51110ce9a3074b8918ad",
+      "7c69d327570a5af34e2c293efdbd556095e56bde3b4025030054e2f9646d8c37",
+      "f45da9bdab7ce567eeaec8824bccc3705375d8202f7d19a1dd6d050fa408b944",
+      "4fd25e853af2aabcd3bf21b5cfb3d4f83437a6b6e6cb34ae2cfd13b779b375d3"
+     ],
+     "row": {
+      "id": "HJHKKF",
+      "occ": 0,
+      "acres_micro": "373001569",
+      "sqft_centi": "54809177"
+     }
+    },
+    {
+     "version": 2,
+     "fips": 91000,
+     "epoch": 1,
+     "nLeaves": 1000,
+     "index": 998,
+     "siblings": [
+      "6ce50c8d51085c3bd70fc26af89c417a0e4c143eb3e6ec486fdcff3259ae79d8",
+      "73643af412b16aa3ce47593db555507037fa0cc9e9dced0e02189bd49bdffb88",
+      "7de881f071385974c8f9bf1aba81e2652aa2867fa90cf319bac6486f6875d19a",
+      "af01e3ea0df10d55383551bc0928ad0a083a4f6ab9dccc0fba2b9d04d05592b4",
+      "592d77550fad859b2bc820fedc76cdcb853c40bd953093fa6f5b6658536f04fb",
+      "556b4c0da386c1868a1740eabf959771ea56b909dde254758db37cf641c6f636",
+      "8b662b9b01f59746cd7976363e5c429ffcb37f62935257276c6448ddd9159425",
+      "9c5372be3ddf61264623f34dbeaacc64a72c8f90661973658b3ca33a9b1b5bda"
+     ],
+     "row": {
+      "id": "ZYX .BE",
+      "occ": 0,
+      "acres_micro": "407807658",
+      "sqft_centi": "697974094"
+     }
+    },
+    {
+     "version": 2,
+     "fips": 91000,
+     "epoch": 1,
+     "nLeaves": 1000,
+     "index": 995,
+     "siblings": [
+      "c90fc5db7654a8b5207c1faa603a7bb2aff7081fd771317f3374eb2b05e66723",
+      "53ad874ae6d321144f4c6be7459806fa693119fe10e4b82d529165df75d2dc42",
+      "6954769def83f9a2738f75ef397dcbf1ddbba946a0a680ac9cb72018fb050d4d",
+      "af01e3ea0df10d55383551bc0928ad0a083a4f6ab9dccc0fba2b9d04d05592b4",
+      "592d77550fad859b2bc820fedc76cdcb853c40bd953093fa6f5b6658536f04fb",
+      "556b4c0da386c1868a1740eabf959771ea56b909dde254758db37cf641c6f636",
+      "8b662b9b01f59746cd7976363e5c429ffcb37f62935257276c6448ddd9159425",
+      "9c5372be3ddf61264623f34dbeaacc64a72c8f90661973658b3ca33a9b1b5bda"
+     ],
+     "row": {
+      "id": "ZWBV9",
+      "occ": 0,
+      "acres_micro": "484186660",
+      "sqft_centi": "634354712"
+     }
+    }
+   ]
+  }
+ ]
+}
