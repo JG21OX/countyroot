@@ -2,7 +2,7 @@
 name = "countyroot-verify"
 version = "0.1.0"
 description = "Verify CountyRoot parcel proofs (leaf v2) against on-chain CountyRoot roots inside any Solana program, without CPI"
-license = "PolyForm-Shield-1.0.0"
+license-file = "LICENSE"
 homepage = "https://countyroot.com"
 repository = "https://github.com/JG21OX/countyroot"
 documentation = "https://docs.rs/countyroot-verify"
