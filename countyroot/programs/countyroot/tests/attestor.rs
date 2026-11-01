@@ -36,8 +36,9 @@ impl E {
         let config = Pubkey::find_program_address(&[b"config"], &countyroot::ID).0;
         let mut e = E { svm, auth, config };
         let a = e.auth.insecure_clone();
+        common::set_upgrade_authority(&mut e.svm, Some(a.pubkey()));
         e.tx(&a, countyroot::instruction::InitConfig { attestor: att.pubkey() }.data(),
-            countyroot::accounts::InitConfig { config, payer: a.pubkey(), system_program: Pubkey::default() }.to_account_metas(None)).unwrap();
+            countyroot::accounts::InitConfig { config, payer: a.pubkey(), program: countyroot::ID, program_data: common::program_data(), system_program: Pubkey::default() }.to_account_metas(None)).unwrap();
         e
     }
     fn fund(&mut self, k: &Keypair) { self.svm.airdrop(&k.pubkey(), 10_000_000_000).unwrap(); }

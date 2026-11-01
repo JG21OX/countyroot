@@ -17,6 +17,7 @@ use solana_transaction::Transaction;
 const GATE_SO: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/target/deploy/parcel_gate.so");
 const CR_SO: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../target/deploy/countyroot-devnet.so");
 const SYS: Pubkey = Pubkey::new_from_array([0; 32]);
+const BPF_UPGRADEABLE: Pubkey = solana_pubkey::pubkey!("BPFLoaderUpgradeab1e11111111111111111111111");
 
 fn gate_id() -> Pubkey { Pubkey::new_from_array([7; 32]) }
 
@@ -145,9 +146,16 @@ fn real_program_post_supersede_retract() {
     svm.add_program_from_file(PROGRAM_ID, CR_SO).unwrap();
     let attestor = &payer;
     let (config, _) = Pubkey::find_program_address(&[b"config"], &PROGRAM_ID);
+    // init_config is restricted to the upgrade authority: give the payer that role (LiteSVM leaves it None).
+    let program_data = Pubkey::find_program_address(&[PROGRAM_ID.as_ref()], &BPF_UPGRADEABLE).0;
+    let mut pd = svm.get_account(&program_data).unwrap();
+    pd.data[12] = 1; pd.data[13..45].copy_from_slice(payer.pubkey().as_ref());
+    svm.set_account(program_data, pd).unwrap();
     let mut d = disc("global:init_config").to_vec(); d.extend(attestor.pubkey().to_bytes());
     let ix = Instruction { program_id: PROGRAM_ID, data: d, accounts: vec![
-        AccountMeta::new(config, false), AccountMeta::new(payer.pubkey(), true), AccountMeta::new_readonly(SYS, false)] };
+        AccountMeta::new(config, false), AccountMeta::new(payer.pubkey(), true),
+        AccountMeta::new_readonly(PROGRAM_ID, false), AccountMeta::new_readonly(program_data, false),
+        AccountMeta::new_readonly(SYS, false)] };
     run(&mut svm, &payer, ix).0.expect("init_config");
 
     let fips = 90001u32; // test-only county code

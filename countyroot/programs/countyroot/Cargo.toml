@@ -22,6 +22,8 @@ custom-heap = []
 custom-panic = []
 # Devnet build: enables the one-time migration instructions and test FIPS 90000-99999.
 devnet = []
+# Mainnet marker: mutually exclusive with devnet (compile_error!). Same code as default features.
+mainnet = []
 
 
 [dependencies]

@@ -8,6 +8,19 @@
 
 use anchor_lang::prelude::*;
 
+// Cluster guard. Mainnet is the default (no cluster feature); `mainnet` is an explicit marker the
+// Mainnet build script turns on so a Mainnet build can never also carry the Devnet-only code paths
+// (one-time migration instructions, test FIPS 90000-99999).
+#[cfg(all(feature = "mainnet", feature = "devnet"))]
+compile_error!("countyroot: features `mainnet` and `devnet` are mutually exclusive");
+
+/// Build marker. Present in the binary only for Devnet builds; scripts/check-mainnet-so.sh refuses
+/// a Mainnet .so that contains it.
+#[cfg(feature = "devnet")]
+#[used]
+#[no_mangle]
+pub static COUNTYROOT_DEVNET_BUILD: [u8; 26] = *b"COUNTYROOT_DEVNET_BUILD_v1";
+
 declare_id!("7mi96nPvP6SB1eApAd7vN2uUEBDvNR9xVvLqPDt3uvwg");
 
 #[program]
@@ -1016,6 +1029,13 @@ pub struct InitConfig<'info> {
     pub config: Account<'info, Config>,
     #[account(mut)]
     pub payer: Signer<'info>,
+    /// This program. Its programdata_address() pins which ProgramData account is accepted.
+    #[account(constraint = program.programdata_address()? == Some(program_data.key()) @ CountyError::NotUpgradeAuthority)]
+    pub program: Program<'info, crate::program::Countyroot>,
+    /// This program's ProgramData (BPF upgradeable loader). Only the upgrade authority may call
+    /// init_config, so nobody can front-run the first config right after a fresh deploy.
+    #[account(constraint = program_data.upgrade_authority_address == Some(payer.key()) @ CountyError::NotUpgradeAuthority)]
+    pub program_data: Account<'info, ProgramData>,
     pub system_program: Program<'info, System>,
 }
 
@@ -1147,4 +1167,6 @@ pub enum CountyError {
     IsLatest,
     #[msg("superseded_by must be after this epoch and no later than the latest epoch")]
     BadSupersededBy,
+    #[msg("init_config: signer is not this program's upgrade authority")]
+    NotUpgradeAuthority,
 }

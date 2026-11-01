@@ -46,6 +46,13 @@
           "signer": true
         },
         {
+          "name": "program",
+          "address": "7mi96nPvP6SB1eApAd7vN2uUEBDvNR9xVvLqPDt3uvwg"
+        },
+        {
+          "name": "program_data"
+        },
+        {
           "name": "system_program",
           "address": "11111111111111111111111111111111"
         }
@@ -1712,6 +1719,11 @@
       "code": 6026,
       "name": "BadSupersededBy",
       "msg": "superseded_by must be after this epoch and no later than the latest epoch"
+    },
+    {
+      "code": 6027,
+      "name": "NotUpgradeAuthority",
+      "msg": "init_config: signer is not this program's upgrade authority"
     }
   ],
   "types": [

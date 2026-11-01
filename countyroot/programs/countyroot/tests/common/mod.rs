@@ -13,6 +13,19 @@ pub fn cr(fips: u32, epoch: u32) -> Pubkey {
 pub fn head(fips: u32) -> Pubkey {
     Pubkey::find_program_address(&[b"county_head", &fips.to_le_bytes()], &countyroot::ID).0
 }
+/// ProgramData PDA of this program under the BPF upgradeable loader.
+pub fn program_data() -> Pubkey {
+    Pubkey::find_program_address(&[countyroot::ID.as_ref()], &anchor_lang::solana_program::bpf_loader_upgradeable::ID).0
+}
+/// LiteSVM writes ProgramData with upgrade_authority = None; set it like a real deploy.
+/// ProgramData metadata (bincode): u32 tag | u64 slot | u8 option | [u8; 32] authority.
+pub fn set_upgrade_authority(svm: &mut litesvm::LiteSVM, auth: Option<Pubkey>) {
+    let pd = program_data();
+    let mut acc = svm.get_account(&pd).expect("program data");
+    match auth { Some(k) => { acc.data[12] = 1; acc.data[13..45].copy_from_slice(k.as_ref()); }
+                 None => { acc.data[12] = 0; acc.data[13..45].fill(0); } }
+    svm.set_account(pd, acc).unwrap();
+}
 pub fn config() -> Pubkey { Pubkey::find_program_address(&[b"config"], &countyroot::ID).0 }
 
 pub fn prov(seed: u8) -> Provenance {
@@ -62,9 +75,10 @@ impl H {
         svm.airdrop(&att.pubkey(), 100_000_000_000).unwrap();
         let mut h = H { svm, auth, att };
         let a = h.auth.insecure_clone();
+        set_upgrade_authority(&mut h.svm, Some(a.pubkey()));
         let att_pk = h.att.pubkey();
         h.send(&a, countyroot::instruction::InitConfig { attestor: att_pk }.data(),
-            countyroot::accounts::InitConfig { config: config(), payer: a.pubkey(), system_program: Pubkey::default() }.to_account_metas(None)).unwrap();
+            countyroot::accounts::InitConfig { config: config(), payer: a.pubkey(), program: countyroot::ID, program_data: program_data(), system_program: Pubkey::default() }.to_account_metas(None)).unwrap();
         h
     }
     pub fn send(&mut self, k: &Keypair, data: Vec<u8>, metas: Vec<AccountMeta>) -> R {

@@ -15,6 +15,10 @@ const [config] = PublicKey.findProgramAddressSync(
   program.programId
 );
 
+// init_config is restricted to the program's upgrade authority (checked on-chain via ProgramData).
+const BPF_UPGRADEABLE = new PublicKey("BPFLoaderUpgradeab1e11111111111111111111111");
+const [programData] = PublicKey.findProgramAddressSync([program.programId.toBuffer()], BPF_UPGRADEABLE);
+
 console.log("program ", program.programId.toBase58());
 console.log("attestor", attestor.toBase58());
 console.log("config  ", config.toBase58());
@@ -24,6 +28,8 @@ const sig = await program.methods
   .accounts({
     config,
     payer: attestor,
+    program: program.programId,
+    programData,
     systemProgram: SystemProgram.programId,
   })
   .rpc();
